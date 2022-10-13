@@ -18,7 +18,6 @@ use raw_tracepoint::RawTracepointSkelBuilder;
 pub(in crate::core::probe) struct RawTracepointBuilder {
     map_fds: Vec<(String, i32)>,
     links: Vec<libbpf_rs::Link>,
-    hooks: Vec<&'static [u8]>,
 }
 
 impl ProbeBuilder for RawTracepointBuilder {
@@ -26,13 +25,12 @@ impl ProbeBuilder for RawTracepointBuilder {
         RawTracepointBuilder::default()
     }
 
-    fn init(&mut self, map_fds: &Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()> {
+    fn init(&mut self, map_fds: &Vec<(String, i32)>,) -> Result<()> {
         self.map_fds = map_fds.clone();
-        self.hooks = hooks;
         Ok(())
     }
 
-    fn attach(&mut self, target: &str) -> Result<()> {
+    fn attach(&mut self, target: &str,  hooks: &Vec<&'static [u8]>) -> Result<()> {
         let mut skel = RawTracepointSkelBuilder::default().open()?;
 
         // FIXME.
@@ -47,7 +45,7 @@ impl ProbeBuilder for RawTracepointBuilder {
             .prog_mut("probe_raw_tracepoint")
             .ok_or_else(|| anyhow!("Couldn't get program"))?;
 
-        let mut links = freplace_hooks(prog.fd(), &self.hooks)?;
+        let mut links = freplace_hooks(prog.fd(), hooks)?;
         self.links.append(&mut links);
 
         self.links.push(prog.attach_raw_tracepoint(target)?);

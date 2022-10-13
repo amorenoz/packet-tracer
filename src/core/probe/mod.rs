@@ -39,7 +39,7 @@ struct Group {
     /// List of maps we already have.
     maps: HashMap<String, i32>,
     /// List of hooks.
-    hooks: Vec<&'static [u8]>,
+    hooks: HashMap<String, Vec<&'static [u8]>>,
 }
 
 impl Group {
@@ -76,19 +76,26 @@ impl Group {
         };
 
         if !targets.contains(&target) {
-            targets.insert(target);
+            targets.insert(target.clone());
+            self.hooks.insert(target, Vec::new());
         }
 
         Ok(())
     }
 
-    fn add_hook(&mut self, hook: &'static [u8]) -> Result<()> {
+    fn add_hook(&mut self, target: &str, hook: &'static [u8]) -> Result<()> {
+        let hooks = match self.hooks.get_mut(&String::from(target)) {
+            Some(t) => t,
+            _ => bail!("Target {} not found. Add it before adding hooks to it",
+                      target),
+        };
+
         // FIXME: HARDCODED.
-        if self.hooks.len() == 2 {
-            bail!("Hooks list already full");
+        if hooks.len() == 2 {
+            bail!("Hooks for target {} list already full", target);
         }
 
-        self.hooks.push(hook);
+        hooks.push(hook);
 
         Ok(())
     }
@@ -103,14 +110,17 @@ impl Group {
             // Initialize builders only once per type.
             if !initialized.contains(r#type) {
                 let map_fds = self.maps.clone().into_iter().collect();
-                builder.init(&map_fds, self.hooks.clone())?;
+                builder.init(&map_fds)?;
                 initialized.insert(r#type);
             }
 
             // Attach all the targets.
             for target in targets.iter() {
-                println!("Attaching to {}", target);
-                builder.attach(target)?;
+                let hooks = match self.hooks.get(target) {
+                    Some(t) => t,
+                    _ => bail!("No hooks found"),
+                };
+                builder.attach(target, hooks)?;
             }
         }
 

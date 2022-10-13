@@ -69,8 +69,8 @@ fn main() {
     build_bpf("src/core/probe/type/bpf/raw_tracepoint.bpf.c");
 
     // collector::skb
-    build_hook("src/collector/skb/bpf/hook.bpf.c");
-    build_hook("src/collector/net/bpf/hook.bpf.c");
+    build_hook("src/collector/skb/bpf/skb_hook.bpf.c");
+    build_hook("src/collector/skb/bpf/pid_hook.bpf.c");
 
     println!("cargo:rerun-if-changed={}", INCLUDE_PATH);
 }

@@ -9,9 +9,10 @@
 struct event {
 	u64 ksym;
 	u64 timestamp;
+	u64 pid;
 
 	u16 skb_etype;
-	u8 rsvd[14];
+	u8 rsvd[6];
 };
 
 struct {

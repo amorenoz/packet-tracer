@@ -68,8 +68,8 @@ impl<'a> Kernel<'a> {
         Ok(())
     }
 
-    pub(crate) fn add_hook(&mut self, hook: &'static [u8]) -> Result<()> {
-        self.group.add_hook(hook)
+    pub(crate) fn add_hook(&mut self, target: &str, hook: &'static [u8]) -> Result<()> {
+        self.group.add_hook(target, hook)
     }
 
     pub(crate) fn attach(&mut self) -> Result<()> {

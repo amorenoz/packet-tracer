@@ -19,6 +19,7 @@ int probe_kprobe(struct pt_regs *ctx)
 {
 	struct trace_context context = {};
 
+
 	context.timestamp = bpf_ktime_get_ns();
 	context.ksym = PT_REGS_IP(ctx) - 1;
 	get_regs(ctx, &context.regs);

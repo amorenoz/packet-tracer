@@ -20,10 +20,10 @@ impl Collector for NetCollector {
     }
 
     fn init(&mut self, probe: &mut Probes) -> Result<()> {
-        probe.kernel.add_hook(hook::DATA)?;
         probe
             .kernel
             .add_probe(ProbeType::Kprobe, "kfree_skb_reason")?;
+        probe.kernel.add_hook("kfree_skb_reason", hook::DATA)?;
 
         Ok(())
     }

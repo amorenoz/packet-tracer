@@ -9,8 +9,11 @@ use anyhow::Result;
 use super::Collector;
 use crate::core::probe::{ProbeType, Probes};
 
-#[path = "bpf/.out/hook.rs"]
-mod hook;
+#[path = "bpf/.out/skb_hook.rs"]
+mod skb_hook;
+
+#[path = "bpf/.out/pid_hook.rs"]
+mod pid_hook;
 
 pub(super) struct SkbCollector {}
 
@@ -24,10 +27,19 @@ impl Collector for SkbCollector {
     }
 
     fn init(&mut self, probe: &mut Probes) -> Result<()> {
-        probe.kernel.add_hook(hook::DATA)?;
         probe
             .kernel
             .add_probe(ProbeType::Kprobe, "kfree_skb_reason")?;
+
+        probe.kernel.add_hook("kfree_skb_reason", skb_hook::DATA)?;
+        probe.kernel.add_hook("kfree_skb_reason", pid_hook::DATA)?;
+
+        probe
+            .kernel
+            .add_probe(ProbeType::Kprobe, "tcp_sendmsg")?;
+
+        probe.kernel.add_hook("tcp_sendmsg", pid_hook::DATA)?;
+
 
         Ok(())
     }

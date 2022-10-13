@@ -25,9 +25,9 @@ pub(super) trait ProbeBuilder {
     /// Initialize the probe builder before attaching programs to probes. It
     /// takes an option vector of map fds so that maps can be reused and shared
     /// accross builders.
-    fn init(&mut self, map_fds: &Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()>;
+    fn init(&mut self, map_fds: &Vec<(String, i32)>) -> Result<()>;
     /// Attach a probe to a given target (function, tracepoint, etc).
-    fn attach(&mut self, target: &str) -> Result<()>;
+    fn attach(&mut self, target: &str, hooks: &Vec<&'static [u8]>) -> Result<()>;
 }
 
 fn reuse_map_fds(open_obj: &libbpf_rs::OpenObject, map_fds: &Vec<(String, i32)>) -> Result<()> {

@@ -135,7 +135,6 @@ pub(crate) fn get_collectors<'a>() -> Result<CollectorsCollection<'a>> {
     // FIXME: let the skb collector be the 1st one
     //        but for now as its attach() hook is an infitine loop...
     collection
-        .register(Box::new(NetCollector::new()?))?
         .register(Box::new(SkbCollector::new()?))?;
 
     Ok(collection)

@@ -12,6 +12,8 @@ use anyhow::Result;
 use plain::Plain;
 use std::{mem, time::Duration};
 
+use crate::core::kernel_symbols::get_symbol_name;
+
 const EVENTS_MAX: u32 = 512;
 
 /// Representation of events coming from the probes. It must match its eBPF
@@ -27,9 +29,10 @@ struct Event {
     ksym: u64,
     /// Timestamp of the event. It is set early by kernel probes.
     timestamp: u64,
+	pid: u64,
 
     skb_etype: u16,
-    rsvd: [u8; 14],
+    rsvd: [u8; 6],
 }
 unsafe impl Plain for Event {}
 
@@ -92,9 +95,16 @@ fn process_event(data: &[u8]) -> i32 {
     plain::copy_from_bytes(&mut event, data).unwrap();
 
     // Dummy processing for now.
-    println!(
-        "{} {:#x} {:#x}",
-        event.timestamp, event.ksym, event.skb_etype
-    );
+    if event.skb_etype > 0 {
+        println!(
+            "{} {} {:#x} {:#x}",
+            event.timestamp, get_symbol_name(event.ksym).unwrap(),
+                event.pid, event.skb_etype);
+    } else {
+        println!(
+            "{} {} {:#x}",
+            event.timestamp, get_symbol_name(event.ksym).unwrap(),
+                event.pid);
+    }
     0
 }

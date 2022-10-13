@@ -15,7 +15,7 @@ use kprobe::KprobeSkelBuilder;
 
 #[derive(Default)]
 pub(in crate::core::probe) struct KprobeBuilder {
-    obj: Option<libbpf_rs::Object>,
+    map: Vec<(String, i32)>,
     links: Vec<libbpf_rs::Link>,
 }
 
@@ -24,31 +24,27 @@ impl ProbeBuilder for KprobeBuilder {
         KprobeBuilder::default()
     }
 
-    fn init(&mut self, map_fds: &Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()> {
-        if self.obj.is_some() {
+    fn init(&mut self, map_fds: &Vec<(String, i32)>) -> Result<()> {
+        if self.map.len() > 0 {
             bail!("Kprobe builder already initialized");
         }
+        self.map = map_fds.clone();
 
+        Ok(())
+    }
+
+    fn attach(&mut self, target: &str, hooks: &Vec<&'static [u8]>) -> Result<()> {
         let open_obj = KprobeSkelBuilder::default().open()?.obj;
-        reuse_map_fds(&open_obj, map_fds)?;
+        reuse_map_fds(&open_obj, &self.map)?;
 
-        let obj = open_obj.load()?;
+        let mut obj = open_obj.load()?;
+
         let fd = obj
             .prog("probe_kprobe")
             .ok_or_else(|| anyhow!("Couldn't get program"))?
             .fd();
-        let mut links = freplace_hooks(fd, &hooks)?;
+        let mut links = freplace_hooks(fd, hooks)?;
         self.links.append(&mut links);
-
-        self.obj = Some(obj);
-        Ok(())
-    }
-
-    fn attach(&mut self, target: &str) -> Result<()> {
-        let obj = match &mut self.obj {
-            Some(obj) => obj,
-            _ => bail!("Kprobe builder is uninitialized"),
-        };
 
         self.links.push(
             obj.prog_mut("probe_kprobe")
