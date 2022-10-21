@@ -7,6 +7,7 @@
 use anyhow::Result;
 
 use super::Collector;
+use crate::config::Cli;
 use crate::core::probe::kernel;
 
 pub(super) struct SkbCollector {}
@@ -16,11 +17,15 @@ impl Collector for SkbCollector {
         Ok(SkbCollector {})
     }
 
+    fn register_cli(&self, _: &mut Cli) -> Result<()> {
+        Ok(())
+    }
+
     fn name(&self) -> &'static str {
         "skb"
     }
 
-    fn init(&mut self, _kernel: &mut kernel::Kernel) -> Result<()> {
+    fn init(&mut self, _kernel: &mut kernel::Kernel, _: &Cli) -> Result<()> {
         Ok(())
     }
 

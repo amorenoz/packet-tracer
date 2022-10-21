@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use log::{error, warn};
 
+use crate::config::Cli;
 use crate::core::probe;
 
 mod skb;
@@ -33,6 +34,8 @@ trait Collector {
     fn new() -> Result<Self>
     where
         Self: Sized;
+    /// Register command line arguments on the provided Cli object.
+    fn register_cli(&self, cli: &mut Cli) -> Result<()>;
     /// Return the name of the collector. It *has* to be unique among all the
     /// collectors.
     fn name(&self) -> &'static str;
@@ -42,7 +45,7 @@ trait Collector {
     /// as part of the collector registration and only then feed the collector
     /// with data coming from the core. Checks for the mandatory part of the
     /// collector should be done here.
-    fn init(&mut self, kernel: &mut probe::Kernel) -> Result<()>;
+    fn init(&mut self, kernel: &mut probe::Kernel, cli: &Cli) -> Result<()>;
     /// Start the group of events (non-probes).
     fn start(&mut self) -> Result<()>;
 }
@@ -86,15 +89,24 @@ impl Group {
         Ok(self)
     }
 
+    /// Register all collectors' command line arguments by calling their register_cli function.
+    pub(crate) fn register_cli(&self, cli: &mut Cli) -> Result<()> {
+        for (_, c) in self.list.iter() {
+            // Cli registration errors are fatal.
+            c.register_cli(cli)?;
+        }
+        Ok(())
+    }
+
     /// Initialize all collectors by calling their `init()` function. Collectors
     /// failing to initialize will be removed from the group.
-    pub(crate) fn init(&mut self) -> Result<()> {
+    pub(crate) fn init(&mut self, cli: &Cli) -> Result<()> {
         let mut to_remove = Vec::new();
 
         // Try initializing all collectors in the group. Failing ones are
         // put on a list for future removal.
         for (_, c) in self.list.iter_mut() {
-            if let Err(e) = c.init(&mut self.kernel) {
+            if let Err(e) = c.init(&mut self.kernel, cli) {
                 to_remove.push(c.name());
                 error!(
                     "Could not initialize collector '{}', unregistering: {}",
@@ -116,7 +128,7 @@ impl Group {
     /// Start the event retrieval for all collectors in the group by calling
     /// their `start()` function. Collectors failing to start the event
     /// retrieval will be kept in the group.
-    pub(crate) fn start(&mut self) -> Result<()> {
+    pub(crate) fn start(&mut self, _: &Cli) -> Result<()> {
         self.kernel.attach()?;
 
         for (_, c) in self.list.iter_mut() {
@@ -143,9 +155,16 @@ pub(crate) fn get_collectors() -> Result<Group> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::{arg, Args};
 
     struct DummyCollectorA;
     struct DummyCollectorB;
+
+    #[derive(Args, Default)]
+    struct DummyCollectorAArgs {
+        #[arg(long)]
+        foo: Option<String>
+    }
 
     impl Collector for DummyCollectorA {
         fn new() -> Result<DummyCollectorA> {
@@ -154,7 +173,10 @@ mod tests {
         fn name(&self) -> &'static str {
             "dummy-a"
         }
-        fn init(&mut self, _: &mut probe::Kernel) -> Result<()> {
+        fn register_cli(&self, cli: &mut Cli) -> Result<()> {
+            cli.register_collector_args::<DummyCollectorAArgs>("dummy-a")
+        }
+        fn init(&mut self, _: &mut probe::Kernel, _: &Cli) -> Result<()> {
             Ok(())
         }
         fn start(&mut self) -> Result<()> {
@@ -169,7 +191,10 @@ mod tests {
         fn name(&self) -> &'static str {
             "dummy-b"
         }
-        fn init(&mut self, _: &mut probe::Kernel) -> Result<()> {
+        fn register_cli(&self, cli: &mut Cli) -> Result<()> {
+            cli.register_collector("dummy-b")
+        }
+        fn init(&mut self, _: &mut probe::Kernel, _: &Cli) -> Result<()> {
             bail!("Could not initialize");
         }
         fn start(&mut self) -> Result<()> {
@@ -180,27 +205,52 @@ mod tests {
     #[test]
     fn register_collectors() -> Result<()> {
         let mut group = Group::new()?;
-        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_ok());
-        assert!(group.register(Box::new(DummyCollectorB::new()?)).is_ok());
+        assert!(group
+            .register(Box::new(DummyCollectorA::new()?))
+            .is_ok());
+        assert!(group
+            .register(Box::new(DummyCollectorB::new()?))
+            .is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn register_cli() -> Result<()> {
+        let mut group = Group::new()?;
+        let mut cli = Cli::new()?;
+        assert!(group
+            .register(Box::new(DummyCollectorA::new()?))
+            .is_ok());
+        assert!(group
+            .register(Box::new(DummyCollectorB::new()?))
+            .is_ok());
+
+        assert!(group.register_cli(&mut cli).is_ok());
         Ok(())
     }
 
     #[test]
     fn register_uniqueness() -> Result<()> {
         let mut group = Group::new()?;
-        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_ok());
-        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_err());
+        assert!(group
+            .register(Box::new(DummyCollectorA::new()?))
+            .is_ok());
+        assert!(group
+            .register(Box::new(DummyCollectorA::new()?))
+            .is_err());
         Ok(())
     }
 
     #[test]
-    fn get_collectors() {
+    fn get_collectors() -> Result<()> {
         assert!(super::get_collectors().is_ok());
+        Ok(())
     }
 
     #[test]
     fn init_collectors() -> Result<()> {
         let mut group = Group::new()?;
+        let cli = Cli::new()?;
         let mut dummy_a = Box::new(DummyCollectorA::new()?);
         let mut dummy_b = Box::new(DummyCollectorB::new()?);
 
@@ -209,15 +259,16 @@ mod tests {
 
         let mut kernel = probe::Kernel::new()?;
 
-        assert!(dummy_a.init(&mut kernel).is_ok());
-        assert!(dummy_b.init(&mut kernel).is_err());
-        assert!(group.init().is_ok());
+        assert!(dummy_a.init(&mut kernel, &cli).is_ok());
+        assert!(dummy_b.init(&mut kernel, &cli).is_err());
+        assert!(group.init(&cli).is_ok());
         Ok(())
     }
 
     #[test]
     fn start_collectors() -> Result<()> {
         let mut group = Group::new()?;
+        let cli = Cli::new()?;
         let mut dummy_a = Box::new(DummyCollectorA::new()?);
         let mut dummy_b = Box::new(DummyCollectorB::new()?);
 
@@ -226,7 +277,7 @@ mod tests {
 
         assert!(dummy_a.start().is_ok());
         assert!(dummy_b.start().is_err());
-        assert!(group.start().is_ok());
+        assert!(group.start(&cli).is_ok());
         Ok(())
     }
 }

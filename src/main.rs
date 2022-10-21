@@ -7,9 +7,11 @@ use collector::get_collectors;
 use config::Cli;
 
 fn main() -> Result<()> {
-    let _ = Cli::new();
+    let mut cli = Cli::new()?;
     let mut collectors = get_collectors()?;
-    collectors.init()?;
-    collectors.start()?;
+    collectors.register_cli(&mut cli)?;
+    cli.parse()?;
+    collectors.init(&cli)?;
+    collectors.start(&cli)?;
     Ok(())
 }
