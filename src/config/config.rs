@@ -1,23 +1,30 @@
 #![allow(dead_code)] // FIXME
 
 use anyhow::{bail, Result};
-use std::{collections::HashSet, env, ffi::OsString};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    ffi::OsString,
+};
 
-use clap::{ArgMatches, Args, Command, FromArgMatches};
+use clap::{
+    error::{Error, ErrorKind},
+    ArgMatches, Args, Command, FromArgMatches,
+};
 
 pub(crate) struct Cli {
     command: Command,
-    collectors: HashSet<String>,
+    sub_cli: SubCli,
     matches: Option<ArgMatches>,
 }
 
 impl Cli {
     /// Allocate and return a new Cli object adding the main arguments.
     pub(crate) fn new() -> Result<Self> {
-        let command = Command::new("packet-tracer");
+        let command = MainConfig::augment_args(Command::new("packet-tracer"));
         Ok(Cli {
             command,
-            collectors: HashSet::new(),
+            sub_cli: SubCli::new()?,
             matches: None,
         })
     }
@@ -31,19 +38,7 @@ impl Cli {
         if name == "main" {
             bail!("'main' is a reserved section name");
         }
-
-        let name = String::from(name);
-        if self.collectors.get(&name).is_some() {
-            bail!("config with name {} already registered", name);
-        }
-        self.collectors.insert(name.to_owned());
-
-        self.command = self.command.to_owned().next_help_heading(
-            format!("Collector: {}", name));
-
-        self.command = T::augment_args_for_update(self.command.to_owned());
-
-        Ok(())
+        self.sub_cli.register_collector::<T>(name)
     }
 
     /// Parse binary arguments.
@@ -57,22 +52,38 @@ impl Cli {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        // augment_args places the struct's documentation comments (///) at the program's help
-        // string replacing whatever was there originally. In order to keep a reasonable help
-        // string while allowing modules to write documentation comments on their configuration
-        // section structs, use the MainConfig to augment the args last.
-        if self.collectors.get("main").is_none() {
-            self.command = MainConfig::augment_args(self.command.to_owned());
-            self.collectors.insert("main".to_string());
-        }
+        self.command = self.sub_cli.augment(self.command.to_owned())?;
 
         let matches = match try_get {
             true => self.command.to_owned().try_get_matches_from(iter)?,
             false => self.command.to_owned().get_matches_from(iter),
         };
 
+        match try_get {
+            true => {
+                self.sub_cli
+                    .update_from_arg_matches(&matches, &self.command)?;
+            }
+            false => {
+                self.sub_cli
+                    .update_from_arg_matches(&matches, &self.command)
+                    .unwrap_or_else(|e| e.exit());
+            }
+        }
+
         self.matches = Some(matches);
         Ok(())
+    }
+
+    /// Return the main arguments of a parsed Cli.
+    pub(crate) fn get_main_args(&mut self) -> Result<MainConfig> {
+        let matches = self.matches.as_ref().expect("cli not parsed");
+        MainConfig::from_arg_matches(matches).map_err(|e| anyhow::anyhow!(e))
+    }
+
+    /// Return the SubCommands enum of a parsed Cli.
+    pub(crate) fn get_subcommand(&self) -> Option<&SubCommand> {
+        self.sub_cli.args.as_ref()
     }
 
     /// On an alrady parsed Cli object, retrieve a specific configuration Section by name (and type).
@@ -80,20 +91,180 @@ impl Cli {
     where
         T: Default + FromArgMatches,
     {
-        self.collectors.get(name).expect("section not registered");
         let matches = self.matches.as_ref().expect("cli not parsed");
-        let mut target = T::default();
-        target.update_from_arg_matches(matches)?;
-        Ok(target)
+        self.sub_cli.get_section::<T>(name, matches)
     }
 }
 
 /// Trace packets on the Linux kernel
 ///
-/// Insert a whole lot of ebpf programs into the Linux kernel (and OvS) to find packets wherever
-/// thy are.
+/// packet-tracer is of capturing networking-related events from the system using ebpf and analyze them.
 #[derive(Args, Default)]
 pub(crate) struct MainConfig {}
+
+/// Variant containing all the subcommands and their global configuration.
+#[derive(Debug)]
+pub(crate) enum SubCommand {
+    Collect(CollectArgs),
+}
+
+/// Global configuration of the "collect" subcommand.
+#[derive(Args, Debug)]
+pub(crate) struct CollectArgs {
+    #[arg(long)]
+    ebpf_debug: Option<String>,
+}
+
+/// SubCli handles the subcommand argument parsing.
+// We need to keep a clap::Command for each subcommand so we can dynamically augment them. This is
+// the main reason why we not use add a #[derive(Parser)] to define the subcommands.
+//
+// Instead, the taken approach is to create all the subcommands and, after augmentation, manually
+// add them (augment_subcommand) to the main Command. The drawback of this approach is we don'the
+// have the convenient Variat that stores the executes subcommand and its arguments, so we create
+// that manually as well during.
+// SubCli must be used in a particular order:
+//
+// let s = SubCli::new();
+// s.register_collector::<SomeCollector>("some");
+// s.register_collector::<OtherCollector>("other");
+// [...]
+// let cmd = s.augment(Command::new("myapp"));
+// s.update_from_arg_matches(cmd.get_matches_from(vec!["myapp", "collect", "--someopt"]));
+// let some: SomeCollector = s.get_section("some");
+#[derive(Debug)]
+pub(crate) struct SubCli {
+    args: Option<SubCommand>,
+    commands: HashMap<String, Command>,
+    collectors: HashSet<String>,
+    matches: Option<ArgMatches>,
+}
+
+impl SubCli {
+    /// Create a new SubCli.
+    pub(crate) fn new() -> Result<Self> {
+        let mut commands = HashMap::new();
+        commands.insert(
+            "collect".to_string(),
+            CollectArgs::augment_args(Command::new("collect")),
+        );
+
+        Ok(SubCli {
+            args: None,
+            collectors: HashSet::new(),
+            matches: None,
+            commands,
+        })
+    }
+
+    /// Sets the "about" and "long_about" strings of the internal subcommands.
+    fn set_subcommand_help(&mut self) {
+        let long_about = format!(
+            "Collectors are modules that extract \
+            events from different places of the kernel or userspace daemons \
+            using ebpf.\n\n\
+            The following collectors are supported: [{}]\n",
+            self.collectors
+                .iter()
+                .cloned()
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+
+        let collect = self
+            .commands
+            .remove("collect")
+            .unwrap()
+            .about("Collect events")
+            .long_about(long_about);
+        self.commands.insert("collect".to_string(), collect);
+    }
+
+    /// Augment the command with the SubCli arguments defined.
+    fn augment(&mut self, command: Command) -> Result<Command> {
+        // After all dynamig augmentation is done, we need to overwrite the help (about and
+        // about_long) strings. Otherwise the ones from the document comments (the ones with
+        // "///" of the last dynamic section will be used.
+        self.set_subcommand_help();
+
+        let mut cmd = command.arg_required_else_help(true);
+        for subcommand in self.commands.values() {
+            cmd = cmd.to_owned().subcommand(subcommand.clone());
+        }
+        Ok(cmd)
+    }
+
+    /// Register a new collector with a specific name augmenting the "collect"
+    /// arguments with those of the templated Args struct.
+    pub(crate) fn register_collector<T>(&mut self, name: &'static str) -> Result<()>
+    where
+        T: Args,
+    {
+        let name = String::from(name);
+        if self.collectors.get(&name).is_some() {
+            bail!("config with name {} already registered", name);
+        }
+        self.collectors.insert(name.to_owned());
+
+        let command = self
+            .commands
+            .remove("collect")
+            .unwrap()
+            .next_help_heading(format!("{} collector", name));
+
+        self.commands
+            .insert("collect".to_string(), T::augment_args_for_update(command));
+
+        Ok(())
+    }
+
+    /// Retrieve a specific configuration section by name (and type).
+    /// It must be called after update_from_arg_matches().
+    /// T is initialized using it's Default trait before being updated with the content
+    /// of the cli matches.
+    pub(crate) fn get_section<T>(&self, name: &str, _: &ArgMatches) -> Result<T>
+    where
+        T: Default + FromArgMatches,
+    {
+        self.collectors.get(name).expect("section not registered");
+        let mut target = T::default();
+        target.update_from_arg_matches(
+            self.matches
+                .as_ref()
+                .expect("called get_section before update_from_arg_matches"),
+        )?;
+        Ok(target)
+    }
+
+    /// Updates itself based on the cli matches.
+    pub(crate) fn update_from_arg_matches(
+        &mut self,
+        matches: &ArgMatches,
+        command: &Command,
+    ) -> Result<(), clap::error::Error> {
+        match matches.subcommand() {
+            Some(("collect", args)) => {
+                println!("{:?}", args);
+                self.args = Some(SubCommand::Collect(CollectArgs::from_arg_matches(args)?));
+                self.matches = Some(args.clone());
+            }
+            Some((_, _)) => {
+                return Err(Error::raw(
+                    ErrorKind::InvalidSubcommand,
+                    "Valid subcommands are `collect`",
+                )
+                .with_cmd(command))
+            }
+            None => {
+                return Err(
+                    Error::raw(ErrorKind::MissingSubcommand, "Missing subcommand")
+                        .with_cmd(command),
+                )
+            }
+        }
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -161,7 +332,16 @@ mod tests {
         let mut cli = Cli::new()?;
         assert!(cli.register_collector::<Col1>("col1").is_ok());
         assert!(cli.register_collector::<Col2>("col2").is_ok());
-        assert!(cli.parse_from(["--help"], true).is_ok());
+        let err = cli.parse_from(vec!["packet-tracer", "collect", "--help"], true);
+        assert!(
+            err.is_err()
+                && err
+                    .unwrap_err()
+                    .downcast::<clap::error::Error>()
+                    .expect("is clap error")
+                    .kind()
+                    == ErrorKind::DisplayHelp
+        );
         Ok(())
     }
 
@@ -174,6 +354,7 @@ mod tests {
             .parse_from(
                 vec![
                     "packet-tracer",
+                    "collect",
                     "--col1-someopt",
                     "foo",
                     "--col2-someopt",
@@ -206,10 +387,17 @@ mod tests {
         assert!(cli.register_collector::<Col1>("col1").is_ok());
         assert!(cli.register_collector::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(vec!["packet-tracer", "--no-exixts", "foo"], true)
+            .parse_from(vec!["packet-tracer", "collect", "--no-exixts", "foo"], true)
             .is_err());
+
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector::<Col1>("col1").is_ok());
+        assert!(cli.register_collector::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(vec!["packet-tracer", "--col2-flag", "true"], true)
+            .parse_from(
+                vec!["packet-tracer", "collect", "--col2-flag", "true"],
+                true
+            )
             .is_err());
         Ok(())
     }
@@ -219,7 +407,10 @@ mod tests {
         let mut cli = Cli::new()?;
         assert!(cli.register_collector::<Col1>("col1").is_ok());
         assert!(cli
-            .parse_from(vec!["packet-tracer", "--col1-choice", "baz"], true)
+            .parse_from(
+                vec!["packet-tracer", "collect", "--col1-choice", "baz"],
+                true
+            )
             .is_ok());
         let col1 = cli.get_section::<Col1>("col1");
         assert!(col1.is_ok());
@@ -236,7 +427,10 @@ mod tests {
         assert!(cli.register_collector::<Col1>("col1").is_ok());
         assert!(cli.register_collector::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(vec!["packet-tracer", "--col1-choice", "wrong"], true)
+            .parse_from(
+                vec!["packet-tracer", "collect", "--col1-choice", "wrong"],
+                true
+            )
             .is_err());
         Ok(())
     }
