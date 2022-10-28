@@ -29,16 +29,26 @@ impl Cli {
         })
     }
 
+    /// Register a new collector with a specific name and no arguments.
+    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()>
+    {
+        if name == "main" {
+            bail!("'main' is a reserved section name");
+        }
+        self.sub_cli.register_collector(name)
+
+    }
+
     /// Register a new collector with a specific name augmenting the Cli's
     /// arguments with those of the templated Args struct.
-    pub(crate) fn register_collector<T>(&mut self, name: &'static str) -> Result<()>
+    pub(crate) fn register_collector_args<T>(&mut self, name: &'static str) -> Result<()>
     where
         T: Args,
     {
         if name == "main" {
             bail!("'main' is a reserved section name");
         }
-        self.sub_cli.register_collector::<T>(name)
+        self.sub_cli.register_collector_args::<T>(name)
     }
 
     /// Parse binary arguments.
@@ -126,8 +136,8 @@ pub(crate) struct CollectArgs {
 // SubCli must be used in a particular order:
 //
 // let s = SubCli::new();
-// s.register_collector::<SomeCollector>("some");
-// s.register_collector::<OtherCollector>("other");
+// s.register_collector_args::<SomeCollector>("some");
+// s.register_collector("other");
 // [...]
 // let cmd = s.augment(Command::new("myapp"));
 // s.update_from_arg_matches(cmd.get_matches_from(vec!["myapp", "collect", "--someopt"]));
@@ -194,17 +204,23 @@ impl SubCli {
         Ok(cmd)
     }
 
-    /// Register a new collector with a specific name augmenting the "collect"
-    /// arguments with those of the templated Args struct.
-    pub(crate) fn register_collector<T>(&mut self, name: &'static str) -> Result<()>
-    where
-        T: Args,
+    /// Register a new collector with a specific name and no arguments.
+    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()>
     {
         let name = String::from(name);
         if self.collectors.get(&name).is_some() {
             bail!("config with name {} already registered", name);
         }
         self.collectors.insert(name.to_owned());
+        Ok(())
+    }
+    /// Register a new collector with a specific name augmenting the "collect"
+    /// arguments with those of the templated Args struct.
+    pub(crate) fn register_collector_args<T>(&mut self, name: &'static str) -> Result<()>
+    where
+        T: Args,
+    {
+        self.register_collector(name)?;
 
         let command = self
             .commands
@@ -314,24 +330,33 @@ mod tests {
     #[test]
     fn register_collectors() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         Ok(())
     }
 
     #[test]
+    fn register_collectors_noargs() -> Result<()> {
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector("col1").is_ok());
+        assert!(cli.register_collector("col1").is_err());
+        Ok(())
+    }
+
+
+    #[test]
     fn register_uniqueness() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col1>("col1").is_err());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_err());
         Ok(())
     }
 
     #[test]
     fn cli_parse() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         let err = cli.parse_from(vec!["packet-tracer", "collect", "--help"], true);
         assert!(
             err.is_err()
@@ -348,8 +373,8 @@ mod tests {
     #[test]
     fn cli_parse_args() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
             .parse_from(
                 vec![
@@ -384,15 +409,15 @@ mod tests {
     #[test]
     fn cli_parse_args_err() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
             .parse_from(vec!["packet-tracer", "collect", "--no-exixts", "foo"], true)
             .is_err());
 
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
             .parse_from(
                 vec!["packet-tracer", "collect", "--col2-flag", "true"],
@@ -405,7 +430,7 @@ mod tests {
     #[test]
     fn cli_parse_args_enum() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli
             .parse_from(
                 vec!["packet-tracer", "collect", "--col1-choice", "baz"],
@@ -424,8 +449,8 @@ mod tests {
     #[test]
     fn cli_parse_args_enum_err() -> Result<()> {
         let mut cli = Cli::new()?;
-        assert!(cli.register_collector::<Col1>("col1").is_ok());
-        assert!(cli.register_collector::<Col2>("col2").is_ok());
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
             .parse_from(
                 vec!["packet-tracer", "collect", "--col1-choice", "wrong"],
