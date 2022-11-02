@@ -13,7 +13,6 @@ use clap::{
     Arg, ArgMatches, Args, Command, FromArgMatches,
 };
 
-
 pub(crate) struct Cli {
     command: Command,
     sub_cli: SubCli,
@@ -52,24 +51,37 @@ impl Cli {
     }
 
     /// Parse binary arguments.
+    /// Parsing failure exit the program.
     pub(crate) fn parse(&mut self) -> Result<()> {
-        self.parse_from(&mut env::args_os(), false)
+        self.do_parse_from(&mut env::args_os(), false)
     }
 
     /// Parse an interator of strings as input arguments. Useful for testing.
-    fn parse_from<I, T>(&mut self, iter: I, try_get: bool) -> Result<()>
+    /// Parsing failures are returned.
+    pub(crate) fn parse_from<I, T>(&mut self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<OsString> + Clone,
+    {
+        self.do_parse_from(iter, true)
+    }
+
+    // Parse an interator of strings as input arguments
+    // "try" determines if the errors should be returned or if the program should
+    // exit.
+    fn do_parse_from<I, T>(&mut self, iter: I, r#try: bool) -> Result<()>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
         self.command = self.sub_cli.augment(self.command.to_owned())?;
 
-        let matches = match try_get {
+        let matches = match r#try {
             true => self.command.to_owned().try_get_matches_from(iter)?,
             false => self.command.to_owned().get_matches_from(iter),
         };
 
-        match try_get {
+        match r#try {
             true => {
                 self.sub_cli
                     .update_from_arg_matches(&matches, &self.command)?;
@@ -389,7 +401,7 @@ mod tests {
         let mut cli = Cli::new()?;
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
-        let err = cli.parse_from(vec!["packet-tracer", "collect", "--help"], true);
+        let err = cli.parse_from(vec!["packet-tracer", "collect", "--help"]);
         assert!(
             err.is_err()
                 && err
@@ -408,17 +420,14 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec![
-                    "packet-tracer",
-                    "collect",
-                    "--col1-someopt",
-                    "foo",
-                    "--col2-someopt",
-                    "bar"
-                ],
-                true
-            )
+            .parse_from(vec![
+                "packet-tracer",
+                "collect",
+                "--col1-someopt",
+                "foo",
+                "--col2-someopt",
+                "bar"
+            ])
             .is_ok());
 
         let col1 = cli.get_section::<Col1>("col1");
@@ -444,17 +453,14 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(vec!["packet-tracer", "collect", "--no-exixts", "foo"], true)
+            .parse_from(vec!["packet-tracer", "collect", "--no-exixts", "foo"])
             .is_err());
 
         let mut cli = Cli::new()?;
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--col2-flag", "true"],
-                true
-            )
+            .parse_from(vec!["packet-tracer", "collect", "--col2-flag", "true"])
             .is_err());
         Ok(())
     }
@@ -464,10 +470,7 @@ mod tests {
         let mut cli = Cli::new()?;
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--col1-choice", "baz"],
-                true
-            )
+            .parse_from(vec!["packet-tracer", "collect", "--col1-choice", "baz"])
             .is_ok());
         let col1 = cli.get_section::<Col1>("col1");
         assert!(col1.is_ok());
@@ -484,10 +487,7 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--col1-choice", "wrong"],
-                true
-            )
+            .parse_from(vec!["packet-tracer", "collect", "--col1-choice", "wrong"])
             .is_err());
         Ok(())
     }
@@ -498,10 +498,7 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--collectors", "col1"],
-                true
-            )
+            .parse_from(vec!["packet-tracer", "collect", "--collectors", "col1"])
             .is_ok());
         let command = cli.get_subcommand();
         assert!(command.is_some());
@@ -517,10 +514,12 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--collectors", "col1,col2"],
-                true
-            )
+            .parse_from(vec![
+                "packet-tracer",
+                "collect",
+                "--collectors",
+                "col1,col2"
+            ])
             .is_ok());
         let command = cli.get_subcommand();
         assert!(command.is_some());
@@ -535,9 +534,7 @@ mod tests {
         let mut cli = Cli::new()?;
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
-        assert!(cli
-            .parse_from(vec!["packet-tracer", "collect"], true)
-            .is_ok());
+        assert!(cli.parse_from(vec!["packet-tracer", "collect"]).is_ok());
         let command = cli.get_subcommand();
         assert!(command.is_some());
         assert!(matches!(
@@ -552,10 +549,12 @@ mod tests {
         assert!(cli.register_collector_args::<Col1>("col1").is_ok());
         assert!(cli.register_collector_args::<Col2>("col2").is_ok());
         assert!(cli
-            .parse_from(
-                vec!["packet-tracer", "collect", "--collectors", "col1,noexists"],
-                true
-            )
+            .parse_from(vec![
+                "packet-tracer",
+                "collect",
+                "--collectors",
+                "col1,noexists"
+            ])
             .is_err());
         Ok(())
     }
