@@ -26,6 +26,9 @@ use crate::core::probe;
 mod skb;
 use skb::SkbCollector;
 
+mod ovs;
+use ovs::OvsCollector;
+
 /// Generic trait representing a collector. All collectors are required to
 /// implement this, as they'll be manipulated through this trait.
 trait Collector {
@@ -157,6 +160,7 @@ pub(crate) fn get_collectors() -> Result<Group> {
 
     // Register all collectors here.
     group.register(Box::new(SkbCollector::new()?))?;
+    group.register(Box::new(OvsCollector::new()?))?;
 
     Ok(group)
 }
