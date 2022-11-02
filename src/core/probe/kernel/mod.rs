@@ -79,6 +79,11 @@ impl ProbeSet {
             hooks: Vec::new(),
         }
     }
+
+    /// Enable libbpf-rs debugging.
+    pub(crate) fn debug(&mut self, debug: bool) -> Result<()> {
+        self.builder.debug(debug)
+    }
 }
 
 impl Kernel {
@@ -344,6 +349,14 @@ impl Kernel {
 
         Ok(desc)
     }
+
+    /// Enable libbpf-rs debugging.
+    pub(crate) fn debug(&mut self, debug: bool) -> Result<()> {
+        for probe in self.probes.iter_mut() {
+            probe.debug(debug)?;
+        }
+        Ok(())
+    }
 }
 
 /// Trait representing the interface used to create and handle probes. We use a
@@ -360,6 +373,8 @@ trait ProbeBuilder {
     fn init(&mut self, map_fds: Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()>;
     /// Attach a probe to a given target (function, tracepoint, etc).
     fn attach(&mut self, target: &str, desc: &TargetDesc) -> Result<()>;
+    /// Enable libbpf debugging.
+    fn debug(&mut self, debug: bool) -> Result<()>;
 }
 
 fn reuse_map_fds(open_obj: &libbpf_rs::OpenObject, map_fds: &[(String, i32)]) -> Result<()> {

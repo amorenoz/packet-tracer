@@ -19,6 +19,7 @@ pub(super) struct RawTracepointBuilder {
     links: Vec<libbpf_rs::Link>,
     map_fds: Vec<(String, i32)>,
     hooks: Vec<&'static [u8]>,
+    debug: bool,
 }
 
 impl ProbeBuilder for RawTracepointBuilder {
@@ -26,14 +27,20 @@ impl ProbeBuilder for RawTracepointBuilder {
         RawTracepointBuilder::default()
     }
 
-    fn init(&mut self, map_fds: Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()> {
+    fn init(&mut self, map_fds: Vec<(String, i32)>, _hooks: Vec<&'static [u8]>) -> Result<()> {
         self.map_fds = map_fds;
-        self.hooks = hooks;
+        Ok(())
+    }
+
+    fn debug(&mut self, debug: bool) -> Result<()> {
+        self.debug = debug;
         Ok(())
     }
 
     fn attach(&mut self, target: &str, desc: &TargetDesc) -> Result<()> {
-        let mut skel = RawTracepointSkelBuilder::default().open()?;
+        let mut skel = RawTracepointSkelBuilder::default();
+        skel.obj_builder.debug(self.debug);
+        let mut skel = skel.open()?;
 
         skel.rodata().ksym = desc.ksym;
         skel.rodata().nargs = desc.nargs;

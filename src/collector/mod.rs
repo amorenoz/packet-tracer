@@ -140,8 +140,14 @@ impl Group {
     /// Start the event retrieval for all collectors in the group by calling
     /// their `start()` function. Collectors failing to start the event
     /// retrieval will be kept in the group.
-    pub(crate) fn start(&mut self, _: &Cli) -> Result<()> {
-        self.kernel.attach()?;
+    pub(crate) fn start(&mut self, cli: &Cli) -> Result<()> {
+        let args = match cli
+            .get_subcommand()
+            .ok_or_else(|| anyhow!("subcommand unavailable"))?
+        {
+            SubCommand::Collect(args) => args,
+        };
+        self.kernel.debug(args.ebpf_debug)?;
 
         for (_, c) in self.list.iter_mut() {
             if c.start().is_err() {
@@ -286,12 +292,14 @@ mod tests {
     #[test]
     fn start_collectors() -> Result<()> {
         let mut group = Group::new()?;
-        let cli = Cli::new()?;
+        let mut cli = Cli::new()?;
         let mut dummy_a = Box::new(DummyCollectorA::new()?);
         let mut dummy_b = Box::new(DummyCollectorB::new()?);
 
         group.register(Box::new(DummyCollectorA::new()?))?;
         group.register(Box::new(DummyCollectorB::new()?))?;
+        group.register_cli(&mut cli)?;
+        cli.parse_from(vec!["prog", "collect", "--collectors", "dummy-a"])?;
 
         assert!(dummy_a.start().is_ok());
         assert!(dummy_b.start().is_err());

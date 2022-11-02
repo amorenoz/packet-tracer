@@ -17,6 +17,7 @@ use kprobe_bpf::KprobeSkelBuilder;
 pub(super) struct KprobeBuilder {
     obj: Option<libbpf_rs::Object>,
     links: Vec<libbpf_rs::Link>,
+    debug: bool,
 }
 
 impl ProbeBuilder for KprobeBuilder {
@@ -24,12 +25,20 @@ impl ProbeBuilder for KprobeBuilder {
         KprobeBuilder::default()
     }
 
+    fn debug(&mut self, debug: bool) -> Result<()> {
+        self.debug = debug;
+        Ok(())
+    }
+
     fn init(&mut self, map_fds: Vec<(String, i32)>, hooks: Vec<&'static [u8]>) -> Result<()> {
         if self.obj.is_some() {
             bail!("Kprobe builder already initialized");
         }
 
-        let mut skel = KprobeSkelBuilder::default().open()?;
+        let mut skel = KprobeSkelBuilder::default();
+        skel.obj_builder.debug(self.debug);
+        let mut skel = skel.open()?;
+
         skel.rodata().nhooks = hooks.len() as u32;
 
         let open_obj = skel.obj;

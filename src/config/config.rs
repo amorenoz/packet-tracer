@@ -134,7 +134,7 @@ pub(crate) enum SubCommand {
 #[derive(Args, Debug)]
 pub(crate) struct CollectArgs {
     #[arg(long, default_value = "false")]
-    ebpf_debug: bool,
+    pub(crate) ebpf_debug: bool,
 
     // Some of the options that we want for this arg are not available in clap's derive interface
     // so both the argument definition and the field population will be done manually.
