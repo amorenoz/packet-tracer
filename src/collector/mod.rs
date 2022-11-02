@@ -17,10 +17,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::{error, warn};
 
-use crate::config::Cli;
+use crate::config::{Cli, SubCommand};
 use crate::core::probe;
 
 mod skb;
@@ -102,10 +102,19 @@ impl Group {
     /// failing to initialize will be removed from the group.
     pub(crate) fn init(&mut self, cli: &Cli) -> Result<()> {
         let mut to_remove = Vec::new();
+        let args = match cli
+            .get_subcommand()
+            .ok_or_else(|| anyhow!("subcommand unavailable"))?
+        {
+            SubCommand::Collect(args) => args,
+        };
 
         // Try initializing all collectors in the group. Failing ones are
         // put on a list for future removal.
-        for (_, c) in self.list.iter_mut() {
+        for name in &args.collectors {
+            let c = self.list.get_mut(name).ok_or_else(|| {
+                anyhow!("cli enabled a collector ({}) that was not registered", name)
+            })?;
             if let Err(e) = c.init(&mut self.kernel, cli) {
                 to_remove.push(c.name());
                 error!(
@@ -163,7 +172,7 @@ mod tests {
     #[derive(Args, Default)]
     struct DummyCollectorAArgs {
         #[arg(long)]
-        foo: Option<String>
+        foo: Option<String>,
     }
 
     impl Collector for DummyCollectorA {
@@ -205,12 +214,8 @@ mod tests {
     #[test]
     fn register_collectors() -> Result<()> {
         let mut group = Group::new()?;
-        assert!(group
-            .register(Box::new(DummyCollectorA::new()?))
-            .is_ok());
-        assert!(group
-            .register(Box::new(DummyCollectorB::new()?))
-            .is_ok());
+        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_ok());
+        assert!(group.register(Box::new(DummyCollectorB::new()?)).is_ok());
         Ok(())
     }
 
@@ -218,12 +223,8 @@ mod tests {
     fn register_cli() -> Result<()> {
         let mut group = Group::new()?;
         let mut cli = Cli::new()?;
-        assert!(group
-            .register(Box::new(DummyCollectorA::new()?))
-            .is_ok());
-        assert!(group
-            .register(Box::new(DummyCollectorB::new()?))
-            .is_ok());
+        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_ok());
+        assert!(group.register(Box::new(DummyCollectorB::new()?)).is_ok());
 
         assert!(group.register_cli(&mut cli).is_ok());
         Ok(())
@@ -232,12 +233,8 @@ mod tests {
     #[test]
     fn register_uniqueness() -> Result<()> {
         let mut group = Group::new()?;
-        assert!(group
-            .register(Box::new(DummyCollectorA::new()?))
-            .is_ok());
-        assert!(group
-            .register(Box::new(DummyCollectorA::new()?))
-            .is_err());
+        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_ok());
+        assert!(group.register(Box::new(DummyCollectorA::new()?)).is_err());
         Ok(())
     }
 
@@ -250,7 +247,7 @@ mod tests {
     #[test]
     fn init_collectors() -> Result<()> {
         let mut group = Group::new()?;
-        let cli = Cli::new()?;
+        let mut cli = Cli::new()?;
         let mut dummy_a = Box::new(DummyCollectorA::new()?);
         let mut dummy_b = Box::new(DummyCollectorB::new()?);
 
@@ -261,6 +258,23 @@ mod tests {
 
         assert!(dummy_a.init(&mut kernel, &cli).is_ok());
         assert!(dummy_b.init(&mut kernel, &cli).is_err());
+
+        group.register_cli(&mut cli)?;
+        cli.parse_from(vec!["prog", "collect"])?;
+        assert!(group.init(&cli).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn init_collectors_disabled() -> Result<()> {
+        let mut group = Group::new()?;
+        let mut cli = Cli::new()?;
+
+        group.register(Box::new(DummyCollectorA::new()?))?;
+        group.register(Box::new(DummyCollectorB::new()?))?;
+
+        group.register_cli(&mut cli)?;
+        cli.parse_from(vec!["prog", "collect", "--collectors", "dummy-a"])?;
         assert!(group.init(&cli).is_ok());
         Ok(())
     }
