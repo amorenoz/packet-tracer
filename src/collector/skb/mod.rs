@@ -17,7 +17,8 @@ impl Collector for SkbCollector {
         Ok(SkbCollector {})
     }
 
-    fn register_cli(&self, _: &mut Cli) -> Result<()> {
+    fn register_cli(&self, cli: &mut Cli) -> Result<()> {
+        cli.register_collector("skb")?;
         Ok(())
     }
 
