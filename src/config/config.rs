@@ -8,9 +8,11 @@ use std::{
 };
 
 use clap::{
+    builder::PossibleValuesParser,
     error::{Error, ErrorKind},
-    ArgMatches, Args, Command, FromArgMatches,
+    Arg, ArgMatches, Args, Command, FromArgMatches,
 };
+
 
 pub(crate) struct Cli {
     command: Command,
@@ -30,13 +32,11 @@ impl Cli {
     }
 
     /// Register a new collector with a specific name and no arguments.
-    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()>
-    {
+    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()> {
         if name == "main" {
             bail!("'main' is a reserved section name");
         }
         self.sub_cli.register_collector(name)
-
     }
 
     /// Register a new collector with a specific name augmenting the Cli's
@@ -121,8 +121,13 @@ pub(crate) enum SubCommand {
 /// Global configuration of the "collect" subcommand.
 #[derive(Args, Debug)]
 pub(crate) struct CollectArgs {
-    #[arg(long)]
-    ebpf_debug: Option<String>,
+    #[arg(long, default_value = "false")]
+    ebpf_debug: bool,
+
+    // Some of the options that we want for this arg are not available in clap's derive interface
+    // so both the argument definition and the field population will be done manually.
+    #[arg(skip)]
+    pub(crate) collectors: Vec<String>,
 }
 
 /// SubCli handles the subcommand argument parsing.
@@ -154,10 +159,14 @@ impl SubCli {
     /// Create a new SubCli.
     pub(crate) fn new() -> Result<Self> {
         let mut commands = HashMap::new();
-        commands.insert(
-            "collect".to_string(),
-            CollectArgs::augment_args(Command::new("collect")),
+        let collect = CollectArgs::augment_args(Command::new("collect")).arg(
+            Arg::new("collectors")
+                .long("collectors")
+                .short('c')
+                .value_delimiter(',')
+                .help("comma-separated list of collectors to enable"),
         );
+        commands.insert("collect".to_string(), collect);
 
         Ok(SubCli {
             args: None,
@@ -190,12 +199,29 @@ impl SubCli {
         self.commands.insert("collect".to_string(), collect);
     }
 
+    /// Update "--collectors" argument in "collect" subcommand so its possible values and default
+    /// value match the names of the dynamically added collectors.
+    fn update_collector_arg(&mut self) -> Result<()> {
+        let possible_collectors = Vec::from_iter(self.collectors.iter().map(|x| x.to_owned()));
+        let collect = self
+            .commands
+            .remove("collect")
+            .unwrap()
+            .mut_arg("collectors", |a| {
+                a.value_parser(PossibleValuesParser::new(possible_collectors.clone()))
+                    .default_value(possible_collectors.join(","))
+            });
+        self.commands.insert("collect".to_string(), collect);
+        Ok(())
+    }
+
     /// Augment the command with the SubCli arguments defined.
     fn augment(&mut self, command: Command) -> Result<Command> {
         // After all dynamig augmentation is done, we need to overwrite the help (about and
         // about_long) strings. Otherwise the ones from the document comments (the ones with
         // "///" of the last dynamic section will be used.
         self.set_subcommand_help();
+        self.update_collector_arg()?;
 
         let mut cmd = command.arg_required_else_help(true);
         for subcommand in self.commands.values() {
@@ -205,13 +231,12 @@ impl SubCli {
     }
 
     /// Register a new collector with a specific name and no arguments.
-    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()>
-    {
+    pub(crate) fn register_collector(&mut self, name: &'static str) -> Result<()> {
         let name = String::from(name);
         if self.collectors.get(&name).is_some() {
             bail!("config with name {} already registered", name);
         }
-        self.collectors.insert(name.to_owned());
+        self.collectors.insert(name);
         Ok(())
     }
     /// Register a new collector with a specific name augmenting the "collect"
@@ -260,9 +285,17 @@ impl SubCli {
     ) -> Result<(), clap::error::Error> {
         match matches.subcommand() {
             Some(("collect", args)) => {
-                println!("{:?}", args);
-                self.args = Some(SubCommand::Collect(CollectArgs::from_arg_matches(args)?));
-                self.matches = Some(args.clone());
+                let matches = args.clone();
+                let mut collect = CollectArgs::from_arg_matches(args)?;
+                // Manually set collectors from args.
+                collect.collectors = matches
+                    .get_many("collectors")
+                    .expect("collectors are mandatory")
+                    .map(|x: &String| x.to_owned())
+                    .collect();
+
+                self.matches = Some(matches);
+                self.args = Some(SubCommand::Collect(collect));
             }
             Some((_, _)) => {
                 return Err(Error::raw(
@@ -342,7 +375,6 @@ mod tests {
         assert!(cli.register_collector("col1").is_err());
         Ok(())
     }
-
 
     #[test]
     fn register_uniqueness() -> Result<()> {
@@ -454,6 +486,74 @@ mod tests {
         assert!(cli
             .parse_from(
                 vec!["packet-tracer", "collect", "--col1-choice", "wrong"],
+                true
+            )
+            .is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn cli_select_collectors() -> Result<()> {
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
+        assert!(cli
+            .parse_from(
+                vec!["packet-tracer", "collect", "--collectors", "col1"],
+                true
+            )
+            .is_ok());
+        let command = cli.get_subcommand();
+        assert!(command.is_some());
+        assert!(matches!(
+                command.as_ref().unwrap(),
+                SubCommand::Collect(x) if x.collectors == ["col1"]));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_select_all_collectors() -> Result<()> {
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
+        assert!(cli
+            .parse_from(
+                vec!["packet-tracer", "collect", "--collectors", "col1,col2"],
+                true
+            )
+            .is_ok());
+        let command = cli.get_subcommand();
+        assert!(command.is_some());
+        assert!(matches!(
+                command.as_ref().unwrap(),
+                SubCommand::Collect(x) if x.collectors == ["col1", "col2"]));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_collectors_default() -> Result<()> {
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
+        assert!(cli
+            .parse_from(vec!["packet-tracer", "collect"], true)
+            .is_ok());
+        let command = cli.get_subcommand();
+        assert!(command.is_some());
+        assert!(matches!(
+                command.as_ref().unwrap(),
+                    SubCommand::Collect(x) if x.collectors == ["col1", "col2"]));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_collectors_err() -> Result<()> {
+        let mut cli = Cli::new()?;
+        assert!(cli.register_collector_args::<Col1>("col1").is_ok());
+        assert!(cli.register_collector_args::<Col2>("col2").is_ok());
+        assert!(cli
+            .parse_from(
+                vec!["packet-tracer", "collect", "--collectors", "col1,noexists"],
                 true
             )
             .is_err());
