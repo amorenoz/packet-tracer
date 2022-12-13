@@ -6,6 +6,7 @@
 // Re-export user.rs
 #[allow(clippy::module_inception)]
 pub(crate) mod user;
-
 #[allow(unused_imports)]
 pub(crate) use user::*;
+
+mod proc;
