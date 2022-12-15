@@ -7,7 +7,7 @@
 use anyhow::{anyhow, bail, Result};
 
 use super::{inspect::TargetDesc, *};
-use crate::core::probe::get_ebpf_debug;
+use crate::core::probe::{get_ebpf_debug, Hook};
 
 mod kprobe_bpf {
     include!("bpf/.out/kprobe.skel.rs");

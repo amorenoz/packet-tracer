@@ -6,6 +6,7 @@ use anyhow::{anyhow, bail, Result};
 
 use super::usdt;
 use crate::core::events::bpf::BpfEvents;
+use crate::core::probe::common::Hook;
 
 #[derive(Debug, PartialEq)]
 pub struct UsdtProbe {
@@ -29,39 +30,6 @@ pub(crate) enum UProbe {
     Uprobe,
     Usdt(UsdtProbe),
     Max,
-}
-
-// Copied from kernel.rs: TODO: merge
-/// Hook provided by modules for registering them on kernel probes.
-#[derive(Clone)]
-pub(crate) struct Hook {
-    /// Hook BPF binary data.
-    bpf_prog: &'static [u8],
-    /// HashMap of maps names and their fd, for reuse by the hook.
-    maps: HashMap<String, i32>,
-}
-
-impl Hook {
-    /// Create a new hook given a BPF binary data.
-    pub(crate) fn from(bpf_prog: &'static [u8]) -> Hook {
-        Hook {
-            bpf_prog,
-            maps: HashMap::new(),
-        }
-    }
-
-    /// Request to reuse a map specifically in the hook. For maps being globally
-    /// reused please use User::reuse_map() instead.
-    pub(crate) fn reuse_map(&mut self, name: &str, fd: i32) -> Result<&mut Self> {
-        let name = name.to_string();
-
-        if self.maps.contains_key(&name) {
-            bail!("Map {} already reused, or name is conflicting", name);
-        }
-
-        self.maps.insert(name, fd);
-        Ok(self)
-    }
 }
 
 // This is a simplified version of kernel.::ProbeSet. We don't need that flexibility of mapping

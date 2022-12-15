@@ -15,7 +15,10 @@ use crate::{
             bpf::{BpfEventOwner, BpfEvents},
             EventField,
         },
-        probe::kernel::{self, Hook, ProbeType},
+        probe::{
+            kernel::{self, ProbeType},
+            user, Hook,
+        },
         workaround::SendableMap,
     },
 };
@@ -65,6 +68,7 @@ impl Collector for SkbTrackingCollector {
         &mut self,
         _: &CliConfig,
         kernel: &mut kernel::Kernel,
+        user: &mut user::User,
         events: &mut BpfEvents,
     ) -> Result<()> {
         events.register_unmarshaler(

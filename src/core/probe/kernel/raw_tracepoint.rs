@@ -8,7 +8,7 @@
 use anyhow::{anyhow, bail, Result};
 
 use super::{inspect::TargetDesc, *};
-use crate::core::probe::get_ebpf_debug;
+use crate::core::probe::{get_ebpf_debug, Hook};
 
 mod raw_tracepoint_bpf {
     include!("bpf/.out/raw_tracepoint.skel.rs");

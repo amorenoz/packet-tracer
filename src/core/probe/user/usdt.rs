@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 
 use super::*;
-use crate::core::probe::get_ebpf_debug;
+use crate::core::probe::{get_ebpf_debug, Hook};
 
 mod usdt_bpf {
     include!("bpf/.out/usdt.skel.rs");

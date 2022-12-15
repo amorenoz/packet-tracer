@@ -35,6 +35,7 @@ pub(super) trait Collector {
         &mut self,
         cli: &CliConfig,
         kernel: &mut probe::Kernel,
+        user: &mut probe::User,
         events: &mut BpfEvents,
     ) -> Result<()>;
     /// Start the group of events (non-probes).
@@ -46,6 +47,7 @@ pub(super) trait Collector {
 pub(crate) struct Group {
     list: HashMap<String, Box<dyn Collector>>,
     kernel: probe::Kernel,
+    user: probe::User,
     events: BpfEvents,
 }
 
@@ -53,10 +55,12 @@ impl Group {
     fn new() -> Result<Group> {
         let events = BpfEvents::new()?;
         let kernel = probe::Kernel::new(&events)?;
+        let user = probe::User::new(&events)?;
 
         Ok(Group {
             list: HashMap::new(),
             kernel,
+            user,
             events,
         })
     }
@@ -104,7 +108,7 @@ impl Group {
                 .list
                 .get_mut(name)
                 .ok_or_else(|| anyhow!("unknown collector: {}", &name))?;
-            if let Err(e) = c.init(cli, &mut self.kernel, &mut self.events) {
+            if let Err(e) = c.init(cli, &mut self.kernel, &mut self.user, &mut self.events) {
                 to_remove.push(c.name());
                 error!(
                     "Could not initialize collector '{}', unregistering: {}",
@@ -143,6 +147,7 @@ impl Group {
     pub(crate) fn start(&mut self, _: &CliConfig) -> Result<()> {
         self.events.start_polling()?;
         self.kernel.attach()?;
+        self.user.attach()?;
 
         for (_, c) in self.list.iter_mut() {
             if c.start().is_err() {
