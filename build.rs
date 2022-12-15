@@ -10,6 +10,7 @@ use memmap2::Mmap;
 
 static INCLUDE_PATHS: &[&str] = &[
     "src/core/probe/kernel/bpf/include",
+    "src/core/probe/user/bpf/include",
     "src/core/events/bpf/include",
 ];
 
@@ -83,6 +84,7 @@ fn main() {
     // core::probe::kernel
     build_probe("src/core/probe/kernel/bpf/kprobe.bpf.c");
     build_probe("src/core/probe/kernel/bpf/raw_tracepoint.bpf.c");
+    build_probe("src/core/probe/user/bpf/usdt.bpf.c");
 
     // collector::skb_tracking
     build_hook("src/collector/skb_tracking/bpf/tracking_hook.bpf.c");

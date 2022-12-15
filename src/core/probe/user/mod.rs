@@ -10,3 +10,4 @@ pub(crate) mod user;
 pub(crate) use user::*;
 
 mod proc;
+mod usdt;
