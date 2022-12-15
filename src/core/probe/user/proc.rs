@@ -16,6 +16,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use elf::{endian::AnyEndian, note::Note, ElfBytes};
 use log::warn;
 
+use super::UsdtProbe;
+
 /// Integer to represent all pids.
 const PID_ALL: i32 = -1;
 /// The standard ELF Note type for systemtap information.
@@ -262,6 +264,24 @@ impl Process {
     /// Checks if a symbol (for uprobes) or "provider::name" identifier (for USDT) is traceable.
     pub(crate) fn usdt_info(&self) -> Option<&UsdtInfo> {
         self.usdt_info.as_ref()
+    }
+
+    /// Returns a UsdtProbe for a given target.
+    pub(crate) fn usdt_probe(&self, target: &str) -> Result<UsdtProbe> {
+        let note = self
+            .usdt_info
+            .as_ref()
+            .ok_or_else(|| anyhow!("No USDT information available"))?
+            .get_note(target)?
+            .ok_or_else(|| anyhow!("Target not found"))?;
+
+        Ok(UsdtProbe {
+            provider: note.provider.to_owned(),
+            name: note.name.to_owned(),
+            ksym: note.addr,
+            path: self.path.to_owned(),
+            pid: self.pid,
+        })
     }
 }
 
