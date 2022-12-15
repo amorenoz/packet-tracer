@@ -11,7 +11,7 @@
 //!
 //! Additionally, ProbeBuilder supports sharing maps between programs.
 //!
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 
 use crate::core::probe::*;
 
@@ -26,6 +26,13 @@ mod raw_tracepoint_bpf {
     include!("kernel/bpf/.out/raw_tracepoint.skel.rs");
 }
 use raw_tracepoint_bpf::RawTracepointSkelBuilder;
+
+// USDT:
+mod usdt_bpf {
+    include!("user/bpf/.out/usdt.skel.rs");
+}
+use usdt_bpf::UsdtSkelBuilder;
+
 
 #[derive(Default)]
 pub(crate) struct ProbeBuilder {
@@ -52,6 +59,7 @@ impl ProbeBuilder {
         match probe {
             Probe::Kprobe(kprobe) => self.attach_kprobe(kprobe),
             Probe::RawTracepoint(tp) => self.attach_raw_tracepoint(tp),
+            Probe::Usdt(usdt) => self.attach_usdt(usdt),
         }
     }
 
@@ -98,6 +106,37 @@ impl ProbeBuilder {
 
         self.links
             .push(prog.attach_raw_tracepoint(probe.symbol.attach_name())?);
+        Ok(())
+    }
+
+    fn attach_usdt(&mut self, probe: &user::UsdtProbe) -> Result<()> {
+        let mut skel = UsdtSkelBuilder::default();
+        skel.obj_builder.debug(get_ebpf_debug());
+        let skel = skel.open()?;
+
+        let open_obj = skel.obj;
+        reuse_map_fds(&open_obj, &self.map_fds)?;
+
+        let mut obj = open_obj.load()?;
+        let prog = obj
+            .prog_mut("probe_usdt")
+            .ok_or_else(|| anyhow!("Couldn't get program"))?;
+
+        if self.hooks.len() != 1 {
+            bail!("USDT targets only support a single hook");
+        }
+
+        let mut links = replace_hooks(prog.fd(), &self.hooks)?;
+        self.links.append(&mut links);
+
+        self.links.push(
+            prog.attach_usdt(
+                    probe.pid,
+                    probe.path.to_owned(),
+                    probe.provider.to_owned().to_string(),
+                    probe.name.to_owned().to_string(),
+                )?,
+        );
         Ok(())
     }
 }
@@ -149,6 +188,9 @@ mod tests {
     use super::*;
 
     use crate::core::kernel::Symbol;
+    use crate::core::probe::user::{proc::Process, UsdtProbe};
+
+    use ::probe::probe as define_usdt;
 
     #[test]
     #[cfg_attr(not(feature = "test_cap_bpf"), ignore)]
@@ -163,6 +205,7 @@ mod tests {
             .attach(&Probe::kprobe(Symbol::from_name("consume_skb").unwrap()).unwrap())
             .is_ok());
     }
+
     #[test]
     #[cfg_attr(not(feature = "test_cap_bpf"), ignore)]
     fn init_and_attach_tp() {
@@ -175,6 +218,22 @@ mod tests {
             .is_ok());
         assert!(builder
             .attach(&Probe::raw_tracepoint(Symbol::from_name("skb:consume_skb").unwrap()).unwrap())
+            .is_ok());
+    }
+
+    #[test]
+    #[cfg_attr(not(feature = "test_cap_bpf"), ignore)]
+    fn init_and_attach_usdt() {
+        define_usdt!(test_builder, usdt, 1);
+
+        let mut builder = ProbeBuilder::new();
+
+        let p = Process::from_pid(std::process::id() as i32).unwrap();
+
+        // It's for now, the probes below won't do much.
+        assert!(builder.init(Vec::new(), Vec::new()).is_ok());
+        assert!(builder
+            .attach(&Probe::Usdt(UsdtProbe::new(&p, "test_builder::usdt").unwrap()))
             .is_ok());
     }
 }

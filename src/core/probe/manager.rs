@@ -41,7 +41,7 @@ impl ProbeManager {
     pub(crate) fn new(events: &BpfEvents) -> Result<ProbeManager> {
         // Keep synced with the order of Probe::into::<usize>()!
         let dynamic_probes: [ProbeSet; PROBE_VARIANTS] = Default::default();
-        let targeted_probes: [Vec<ProbeSet>; PROBE_VARIANTS] = [Vec::new(), Vec::new()];
+        let targeted_probes: [Vec<ProbeSet>; PROBE_VARIANTS] = Default::default();
 
         // When testing the kernel object is not modified later to reuse the
         // config map is this map is hidden.
@@ -75,6 +75,7 @@ impl ProbeManager {
     pub(crate) fn add_probe(&mut self, probe: Probe) -> Result<()> {
         let key = match &probe {
             Probe::Kprobe(probe) | Probe::RawTracepoint(probe) => probe.symbol.name(),
+            Probe::Usdt(probe) => probe.name(),
         };
 
         // First check if it is already in the generic probe list.
@@ -155,6 +156,7 @@ impl ProbeManager {
     pub(crate) fn register_hook_to(&mut self, hook: Hook, probe: Probe) -> Result<()> {
         let key = match &probe {
             Probe::Kprobe(probe) | Probe::RawTracepoint(probe) => probe.symbol.name(),
+            Probe::Usdt(probe) => probe.name(),
         };
 
         // First check if the target isn't already registered to the generic
@@ -260,6 +262,7 @@ impl ProbeSet {
                         libbpf_rs::MapFlags::NO_EXIST,
                     )?;
                 }
+                _ => (),
             }
 
             // Finally attach a probe to the target.
