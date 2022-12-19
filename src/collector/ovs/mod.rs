@@ -7,3 +7,7 @@
 pub(super) mod ovs;
 // Re-export ovs.rs
 pub(super) use ovs::*;
+
+mod main_hook {
+    include!("bpf/.out/main_hook.rs");
+}

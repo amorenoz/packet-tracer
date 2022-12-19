@@ -11,3 +11,6 @@ pub(crate) use user::*;
 
 mod proc;
 mod usdt;
+
+#[allow(unused_imports)]
+pub(crate) use proc::*;

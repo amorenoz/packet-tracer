@@ -1,11 +1,12 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 
+use super::main_hook;
 use crate::{
     cli::{dynamic::DynamicCommand, CliConfig},
     collector::Collector,
     core::{
         events::bpf::BpfEvents,
-        probe::{kernel, user},
+        probe::{kernel, user, Hook},
     },
 };
 
@@ -30,9 +31,19 @@ impl Collector for OvsCollector {
         &mut self,
         _: &CliConfig,
         _kernel: &mut kernel::Kernel,
-        _user: &mut user::User,
+        user: &mut user::User,
         _events: &mut BpfEvents,
     ) -> Result<()> {
+        let ovs = user::Process::from_cmd("ovs-vswitchd")?;
+
+        match ovs.is_usdt("main::run_start") {
+            None | Some(false) => bail!("USDTs not enabled on OVS"),
+            Some(true) => (),
+        }
+
+        let main_probe = ovs.usdt_probe("main::run_start")?;
+        user.register_hook_to(user::UProbe::Usdt(main_probe), Hook::from(main_hook::DATA))?;
+
         Ok(())
     }
 
