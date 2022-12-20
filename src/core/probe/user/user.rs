@@ -67,7 +67,7 @@ impl User {
         /* Insert the unmarshaller for the common kernel section. */
         events.register_unmarshaler(
             BpfEventOwner::Userspace,
-            Box::new(|raw_section, fields, _| {
+            Box::new(|raw_section, fields, ctx| {
                 if raw_section.data.len() != 17 {
                     bail!(
                         "Section data is not the expected size {} != 17",
@@ -85,8 +85,21 @@ impl User {
                 fields.push(event_field!("pid", pid));
                 fields.push(event_field!("tid", tid));
 
-                // FIXME: Retrieving the process information every event is definitely very inefficient.
-                let proc = proc::Process::from_pid(pid)?;
+                let pid_key = format!("user_proc_{}", pid);
+                // Try to obtain the Process object from the Context.
+                let proc = match ctx.get(&pid_key) {
+                    Some(val) => val.downcast_ref::<proc::Process>(),
+                    None => {
+                        // Not found, create it, insert it and retrieve it.
+                        let proc = Box::new(proc::Process::from_pid(pid)?);
+                        ctx.insert(pid_key.clone(), proc);
+                        ctx.get(&pid_key)
+                            .ok_or_else(|| anyhow!("Failed to insert process"))?
+                            .downcast_ref::<proc::Process>()
+                    }
+                }
+                .ok_or_else(|| anyhow!("Failed to retrieve process information"))?;
+
                 let sym_str = proc.get_symbol(symbol)?;
 
                 fields.push(event_field!("symbol", sym_str));
