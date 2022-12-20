@@ -36,9 +36,10 @@ impl Collector for OvsCollector {
     ) -> Result<()> {
         let ovs = user::Process::from_cmd("ovs-vswitchd")?;
 
-        match ovs.is_usdt("main::run_start") {
-            None | Some(false) => bail!("USDTs not enabled on OVS"),
-            Some(true) => (),
+        if let Some(usdt) = ovs.usdt_info() {
+            if let Ok(false) = usdt.is_usdt("main::run_start") {
+                bail!("USDTs not enabled on OVS");
+            }
         }
 
         let main_probe = ovs.usdt_probe("main::run_start")?;
