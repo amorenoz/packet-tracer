@@ -4,7 +4,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 
-use super::usdt;
+use super::{proc, usdt};
 use crate::core::events::bpf::{BpfEventOwner, BpfEvents};
 use crate::core::events::EventField;
 use crate::core::probe::common::Hook;
@@ -76,11 +76,29 @@ impl User {
                 }
 
                 let symbol = u64::from_ne_bytes(raw_section.data[0..8].try_into()?);
-                let pid = u64::from_ne_bytes(raw_section.data[8..16].try_into()?);
+                let pid_tid = u64::from_ne_bytes(raw_section.data[8..16].try_into()?);
                 let r#type = u8::from_ne_bytes(raw_section.data[16..17].try_into()?);
 
-                fields.push(event_field!("symbol", symbol));
+                let pid = (pid_tid & 0xFFFFFFFF) as i32;
+                let tid = (pid_tid >> 32) as i32;
+
                 fields.push(event_field!("pid", pid));
+                fields.push(event_field!("tid", tid));
+
+                // FIXME: Retrieving the process information every event is definitely very inefficient.
+                let proc = proc::Process::from_pid(pid)?;
+                let sym_str = proc.get_symbol(symbol)?;
+
+                fields.push(event_field!("symbol", sym_str));
+                fields.push(event_field!("ip", symbol));
+                fields.push(event_field!(
+                    "path",
+                    proc.path()
+                        .to_str()
+                        .ok_or_else(|| anyhow!("Wrong binary path"))?
+                        .to_string()
+                ));
+
                 let type_str = match r#type {
                     1 => "usdt",
                     _ => "unknown",
