@@ -53,9 +53,9 @@ pub(crate) struct Group {
 
 impl Group {
     fn new() -> Result<Group> {
-        let events = BpfEvents::new()?;
-        let kernel = probe::Kernel::new(&events)?;
-        let user = probe::User::new(&events)?;
+        let mut events = BpfEvents::new()?;
+        let kernel = probe::Kernel::new(&mut events)?;
+        let user = probe::User::new(&mut events)?;
 
         Ok(Group {
             list: HashMap::new(),

@@ -11,8 +11,11 @@ use super::{
     inspect::{Inspector, TargetDesc},
     kprobe, raw_tracepoint,
 };
-use crate::core::events::bpf::BpfEvents;
+use crate::core::events::bpf::{BpfEventOwner, BpfEvents};
+use crate::core::events::EventField;
+use crate::core::kernel_symbols;
 use crate::core::probe::Hook;
+use crate::event_field;
 
 /// Probes types supported by this crate.
 #[allow(dead_code)]
@@ -62,7 +65,7 @@ impl ProbeSet {
 }
 
 impl Kernel {
-    pub(crate) fn new(events: &BpfEvents) -> Result<Kernel> {
+    pub(crate) fn new(events: &mut BpfEvents) -> Result<Kernel> {
         // Keep synced with the order of ProbeType!
         let probes: [ProbeSet; ProbeType::Max as usize] = [
             ProbeSet::new(ProbeType::Kprobe, Box::new(kprobe::KprobeBuilder::new())),
@@ -92,6 +95,27 @@ impl Kernel {
         kernel
             .maps
             .insert("events_map".to_string(), events.map_fd());
+
+        /* Insert the unmarshaller for the common kernel section. */
+        events.register_unmarshaler(
+            BpfEventOwner::Kernel,
+            Box::new(|raw_section, fields| {
+                if raw_section.data.len() != 8 {
+                    bail!(
+                        "Section data is not the expected size {} != 8",
+                        raw_section.data.len()
+                    );
+                }
+
+                let symbol = u64::from_ne_bytes(raw_section.data[0..8].try_into()?);
+
+                fields.push(event_field!(
+                    "symbol",
+                    kernel_symbols::get_symbol_name(symbol)?
+                ));
+                Ok(())
+            }),
+        )?;
 
         Ok(kernel)
     }

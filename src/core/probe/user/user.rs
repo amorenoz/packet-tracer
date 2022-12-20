@@ -5,8 +5,10 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::{anyhow, bail, Result};
 
 use super::usdt;
-use crate::core::events::bpf::BpfEvents;
+use crate::core::events::bpf::{BpfEventOwner, BpfEvents};
+use crate::core::events::EventField;
 use crate::core::probe::common::Hook;
+use crate::event_field;
 
 #[derive(Debug, PartialEq)]
 pub struct UsdtProbe {
@@ -55,12 +57,39 @@ pub(crate) struct User {
 }
 
 impl User {
-    pub(crate) fn new(events: &BpfEvents) -> Result<User> {
+    pub(crate) fn new(events: &mut BpfEvents) -> Result<User> {
         let mut user = User {
             progs: Vec::new(),
             maps: HashMap::new(),
         };
         user.maps.insert("events_map".to_string(), events.map_fd());
+
+        /* Insert the unmarshaller for the common kernel section. */
+        events.register_unmarshaler(
+            BpfEventOwner::Userspace,
+            Box::new(|raw_section, fields| {
+                if raw_section.data.len() != 17 {
+                    bail!(
+                        "Section data is not the expected size {} != 17",
+                        raw_section.data.len()
+                    );
+                }
+
+                let symbol = u64::from_ne_bytes(raw_section.data[0..8].try_into()?);
+                let pid = u64::from_ne_bytes(raw_section.data[8..16].try_into()?);
+                let r#type = u8::from_ne_bytes(raw_section.data[16..17].try_into()?);
+
+                fields.push(event_field!("symbol", symbol));
+                fields.push(event_field!("pid", pid));
+                let type_str = match r#type {
+                    1 => "usdt",
+                    _ => "unknown",
+                };
+                fields.push(event_field!("type", type_str.to_string()));
+                Ok(())
+            }),
+        )?;
+
         Ok(user)
     }
 
