@@ -4,6 +4,7 @@
 #![cfg_attr(test, allow(unused_imports))]
 
 use std::{
+    any::Any,
     collections::HashMap,
     fmt, mem,
     sync::{mpsc, Arc},
@@ -21,10 +22,15 @@ use crate::{core::workaround::SendableRingBuffer, event_field};
 /// Timeout when polling for new events from BPF.
 const BPF_EVENTS_POLL_TIMEOUT_MS: u64 = 200;
 
+/// Unmarshaling Context. It's a HashMap that can be used by any Unmarshaler to store and retrieve
+/// arbitrary data.
+type Context = HashMap<String, Box<dyn Any>>;
+
 /// Type of the unmarshaler closures. Takes a raw section as an input and
 /// returns an unmarshaled event section. The closure is chosen based on the
 /// unique owner id of the raw event.
-pub(crate) type EventUnmarshaler = dyn Fn(&BpfRawSection, &mut Vec<EventField>) -> Result<()>;
+pub(crate) type EventUnmarshaler =
+    dyn Fn(&BpfRawSection, &mut Vec<EventField>, &mut Context) -> Result<()>;
 
 // Define a private type for unmarshalers as we'll use it more than once.
 type Unmahrshalers = HashMap<BpfEventOwner, Box<EventUnmarshaler>>;
@@ -65,7 +71,7 @@ impl BpfEvents {
 
         events.register_unmarshaler(
             BpfEventOwner::Common,
-            Box::new(|raw_section, fields| {
+            Box::new(|raw_section, fields, _| {
                 if raw_section.header.data_type != 1 {
                     bail!("Unknown data type");
                 }
@@ -113,12 +119,15 @@ impl BpfEvents {
         let (txc, rxc) = mpsc::channel();
         self.rxc = Some(rxc);
 
+        // Initialize unmarshaling context.
+        let mut ctx = Context::new();
+
         // Closure to handle the raw events coming from the BPF part. We're
         // moving our Arc clone pointing to unmarshalers there and the tx
         // channel.
         let process_event = move |data: &[u8]| -> i32 {
             // Parse the raw event.
-            let event = match parse_raw_event(data, &unmarshalers) {
+            let event = match parse_raw_event(data, &unmarshalers, &mut ctx) {
                 Ok(event) => event,
                 Err(e) => {
                     error!("Could not parse raw event: {}", e);
@@ -166,7 +175,11 @@ impl BpfEvents {
     }
 }
 
-fn parse_raw_event(data: &[u8], unmarshalers: &Unmahrshalers) -> Result<Event> {
+fn parse_raw_event(
+    data: &[u8],
+    unmarshalers: &Unmahrshalers,
+    context: &mut Context,
+) -> Result<Event> {
     // First retrieve the buffer length.
     let data_size = data.len();
     if data_size < 2 {
@@ -248,7 +261,7 @@ fn parse_raw_event(data: &[u8], unmarshalers: &Unmahrshalers) -> Result<Event> {
 
         // Unmarshall the section.
         let mut fields = Vec::new();
-        if let Err(e) = unmarshaler(&raw_section, &mut fields) {
+        if let Err(e) = unmarshaler(&raw_section, &mut fields, context) {
             let size = raw_section.header.size; // unaligned
             error!(
                 "Could not unmarshal section (owner: {} data_type: {} size: {}): {}",

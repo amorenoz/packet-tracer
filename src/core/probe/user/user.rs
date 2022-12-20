@@ -67,7 +67,7 @@ impl User {
         /* Insert the unmarshaller for the common kernel section. */
         events.register_unmarshaler(
             BpfEventOwner::Userspace,
-            Box::new(|raw_section, fields| {
+            Box::new(|raw_section, fields, _| {
                 if raw_section.data.len() != 17 {
                     bail!(
                         "Section data is not the expected size {} != 17",
