@@ -33,7 +33,6 @@ mod usdt_bpf {
 }
 use usdt_bpf::UsdtSkelBuilder;
 
-
 #[derive(Default)]
 pub(crate) struct ProbeBuilder {
     links: Vec<libbpf_rs::Link>,
@@ -129,14 +128,12 @@ impl ProbeBuilder {
         let mut links = replace_hooks(prog.fd(), &self.hooks)?;
         self.links.append(&mut links);
 
-        self.links.push(
-            prog.attach_usdt(
-                    probe.pid,
-                    probe.path.to_owned(),
-                    probe.provider.to_owned().to_string(),
-                    probe.name.to_owned().to_string(),
-                )?,
-        );
+        self.links.push(prog.attach_usdt(
+            probe.pid,
+            &probe.path,
+            probe.provider.to_owned(),
+            probe.name.to_owned(),
+        )?);
         Ok(())
     }
 }
@@ -235,7 +232,9 @@ mod tests {
         // It's for now, the probes below won't do much.
         assert!(builder.init(Vec::new(), Vec::new()).is_ok());
         assert!(builder
-            .attach(&Probe::Usdt(UsdtProbe::new(&p, "test_builder::usdt").unwrap()))
+            .attach(&Probe::Usdt(
+                UsdtProbe::new(&p, "test_builder::usdt").unwrap()
+            ))
             .is_ok());
     }
 }

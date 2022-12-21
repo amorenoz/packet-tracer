@@ -23,8 +23,9 @@ pub(crate) struct UsdtProbe {
 
 impl UsdtProbe {
     /// Return a printable name.
-    pub (crate) fn new(proc: &Process, target: &str) -> Result<Self> {
-        let note = proc.usdt_info()
+    pub(crate) fn new(proc: &Process, target: &str) -> Result<Self> {
+        let note = proc
+            .usdt_info()
             .ok_or_else(|| anyhow!("No USDT information available"))?
             .get_note(target)?
             .ok_or_else(|| anyhow!("Target not found"))?;
