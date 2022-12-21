@@ -2,16 +2,16 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use log::info;
 
 #[cfg(not(test))]
 use super::config::init_config_map;
-use super::{config::ProbeConfig, inspect::inspect_symbol, kprobe, raw_tracepoint};
+use super::{config::ProbeConfig, inspect::inspect_symbol};
 use crate::core::{
     events::bpf::BpfEvents,
     kernel::Symbol,
-    probe::{self, Probe},
+    probe::{self, builder::ProbeBuilder, Hook, Probe},
 };
 
 /// Kernel encapsulates all the information about a kernel probe (kprobe or tracepoint) needed to attach to it.
@@ -38,38 +38,6 @@ impl KernelProbe {
     }
 }
 
-/// Hook provided by modules for registering them on kernel probes.
-#[derive(Clone)]
-pub(crate) struct Hook {
-    /// Hook BPF binary data.
-    bpf_prog: &'static [u8],
-    /// HashMap of maps names and their fd, for reuse by the hook.
-    maps: HashMap<String, i32>,
-}
-
-impl Hook {
-    /// Create a new hook given a BPF binary data.
-    pub(crate) fn from(bpf_prog: &'static [u8]) -> Hook {
-        Hook {
-            bpf_prog,
-            maps: HashMap::new(),
-        }
-    }
-
-    /// Request to reuse a map specifically in the hook. For maps being globally
-    /// reused please use Kernel::reuse_map() instead.
-    pub(crate) fn reuse_map(&mut self, name: &str, fd: i32) -> Result<&mut Self> {
-        let name = name.to_string();
-
-        if self.maps.contains_key(&name) {
-            bail!("Map {} already reused, or name is conflicting", name);
-        }
-
-        self.maps.insert(name, fd);
-        Ok(self)
-    }
-}
-
 /// Main object representing the kernel probes and providing an API for
 /// consumers to register probes, hooks, maps, etc.
 pub(crate) struct Kernel {
@@ -89,16 +57,15 @@ pub(crate) struct Kernel {
 pub(crate) const PROBE_MAX: usize = 128; // TODO add checks on probe registration.
 pub(super) const HOOK_MAX: usize = 10;
 
+#[derive(Default)]
 struct ProbeSet {
-    builder: Box<dyn ProbeBuilder>,
     targets: HashMap<String, Probe>,
     hooks: Vec<Hook>,
 }
 
 impl ProbeSet {
-    fn new(builder: Box<dyn ProbeBuilder>) -> ProbeSet {
+    fn new() -> ProbeSet {
         ProbeSet {
-            builder,
             targets: HashMap::new(),
             hooks: Vec::new(),
         }
@@ -108,10 +75,7 @@ impl ProbeSet {
 impl Kernel {
     pub(crate) fn new(events: &BpfEvents) -> Result<Kernel> {
         // Keep synced with the order of Probe::into::<usize>()!
-        let probes: [ProbeSet; probe::PROBE_VARIANTS] = [
-            ProbeSet::new(Box::new(kprobe::KprobeBuilder::new())),
-            ProbeSet::new(Box::new(raw_tracepoint::RawTracepointBuilder::new())),
-        ];
+        let probes: [ProbeSet; probe::PROBE_VARIANTS] = Default::default();
         let targeted_probes: [Vec<ProbeSet>; probe::PROBE_VARIANTS] = [Vec::new(), Vec::new()];
 
         // When testing the kernel object is not modified later to reuse the
@@ -250,11 +214,7 @@ impl Kernel {
         }
 
         // New target, let's build a new probe set.
-        let mut set = ProbeSet::new(match probe {
-            Probe::Kprobe(_) => Box::new(kprobe::KprobeBuilder::new()),
-            Probe::RawTracepoint(_) => Box::new(raw_tracepoint::RawTracepointBuilder::new()),
-        });
-
+        let mut set = ProbeSet::new();
         set.targets.insert(key, probe);
 
         if self.hooks.len() == HOOK_MAX {
@@ -308,7 +268,8 @@ impl Kernel {
 
         // Initialize the probe builder, only once for all targets.
         let map_fds = maps.into_iter().collect();
-        set.builder.init(map_fds, hooks)?;
+        let mut builder = ProbeBuilder::new();
+        builder.init(map_fds, hooks)?;
 
         // Then handle all probes in the set.
         for (_, probe) in set.targets.iter() {
@@ -327,72 +288,11 @@ impl Kernel {
 
             // Finally attach a probe to the target.
             info!("Attaching probe to {}", probe);
-            set.builder.attach(probe)?;
+            builder.attach(probe)?;
         }
 
         Ok(())
     }
-}
-
-/// Trait representing the interface used to create and handle probes. We use a
-/// trait here as we're supporting various attach types.
-pub(super) trait ProbeBuilder {
-    /// Allocate and return a new instance of the probe builder, with default
-    /// values.
-    fn new() -> Self
-    where
-        Self: Sized;
-    /// Initialize the probe builder before attaching programs to probes. It
-    /// takes an option vector of map fds so that maps can be reused and shared
-    /// accross builders.
-    fn init(&mut self, map_fds: Vec<(String, i32)>, hooks: Vec<Hook>) -> Result<()>;
-    /// Attach a probe to a given target (function, tracepoint, etc).
-    fn attach(&mut self, probe: &Probe) -> Result<()>;
-}
-
-pub(super) fn reuse_map_fds(
-    open_obj: &libbpf_rs::OpenObject,
-    map_fds: &[(String, i32)],
-) -> Result<()> {
-    for map in map_fds.iter() {
-        open_obj
-            .map(map.0.clone())
-            .ok_or_else(|| anyhow!("Couldn't get map {}", map.0.clone()))?
-            .reuse_fd(map.1)?;
-    }
-    Ok(())
-}
-
-pub(super) fn replace_hooks(fd: i32, hooks: &[Hook]) -> Result<Vec<libbpf_rs::Link>> {
-    let mut links = Vec::new();
-
-    for (i, hook) in hooks.iter().enumerate() {
-        let target = format!("hook{}", i);
-
-        let mut open_obj =
-            libbpf_rs::ObjectBuilder::default().open_memory("hook", hook.bpf_prog)?;
-
-        // We have to explicitly use a Vec below to avoid having an unknown size
-        // at build time.
-        let map_fds: Vec<(String, i32)> = hook.maps.clone().into_iter().collect();
-        reuse_map_fds(&open_obj, &map_fds)?;
-
-        let open_prog = open_obj
-            .prog_mut("hook")
-            .ok_or_else(|| anyhow!("Couldn't get hook program"))?;
-
-        open_prog.set_prog_type(libbpf_rs::ProgramType::Ext);
-        open_prog.set_attach_target(fd, Some(target))?;
-
-        let mut obj = open_obj.load()?;
-        links.push(
-            obj.prog_mut("hook")
-                .ok_or_else(|| anyhow!("Couldn't get hook program"))?
-                .attach_trace()?,
-        );
-    }
-
-    Ok(links)
 }
 
 #[cfg(test)]
