@@ -38,7 +38,7 @@ pub(crate) struct ProbeManager {
 }
 
 impl ProbeManager {
-    pub(crate) fn new(events: &BpfEvents) -> Result<ProbeManager> {
+    pub(crate) fn new(events: &mut BpfEvents) -> Result<ProbeManager> {
         // Keep synced with the order of Probe::into::<usize>()!
         let dynamic_probes: [ProbeSet; PROBE_VARIANTS] = Default::default();
         let targeted_probes: [Vec<ProbeSet>; PROBE_VARIANTS] = Default::default();
@@ -60,6 +60,8 @@ impl ProbeManager {
             .insert("config_map".to_string(), mgr.config_map.fd());
         mgr.maps.insert("events_map".to_string(), events.map_fd());
 
+        kernel::register_unmarshaler(events)?;
+        user::register_unmarshaler(events)?;
         Ok(mgr)
     }
 
