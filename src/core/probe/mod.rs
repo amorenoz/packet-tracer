@@ -3,13 +3,17 @@
 //! Module providing a public API to attach to various types of probes.
 
 pub(crate) mod builder;
+// Re-export builder::ProbeBuilder.
+pub(crate) use builder::ProbeBuilder;
 
 pub(crate) mod common;
 pub(crate) use common::get_ebpf_debug;
 
 pub(crate) mod kernel;
-// Re-export kernel::Kernel.
-pub(crate) use kernel::Kernel;
+
+pub(crate) mod manager;
+// Re-export manager
+pub(crate) use manager::{ProbeManager, PROBE_MAX};
 
 #[allow(clippy::module_inception)]
 pub(crate) mod probe;
