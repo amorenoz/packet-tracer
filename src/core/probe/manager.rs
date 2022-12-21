@@ -192,49 +192,63 @@ impl ProbeManager {
     pub(crate) fn attach(&mut self) -> Result<()> {
         // Take care of generic probes first.
         for set in self.dynamic_probes.iter_mut() {
-            Self::attach_set(
-                set,
+            set.hooks = self.dynamic_hooks.clone();
+            set.attach(
                 #[cfg(not(test))]
                 &mut self.config_map,
                 self.maps.clone(),
-                self.dynamic_hooks.clone(),
             )?;
         }
 
         // Then take care of targeted probes.
         for tgt_probe in self.targeted_probes.iter_mut() {
             for set in tgt_probe.iter_mut() {
-                let hooks = [set.hooks.clone(), self.dynamic_hooks.clone()].concat();
-                Self::attach_set(
-                    set,
+                // Extend targeted hooks with dynamic ones.
+                set.hooks.extend(self.dynamic_hooks.iter().cloned());
+                set.attach(
                     #[cfg(not(test))]
                     &mut self.config_map,
                     self.maps.clone(),
-                    hooks,
                 )?;
             }
         }
 
         Ok(())
     }
+}
 
-    fn attach_set(
-        set: &mut ProbeSet,
+#[derive(Default)]
+struct ProbeSet {
+    targets: HashMap<String, Probe>,
+    hooks: Vec<Hook>,
+}
+
+impl ProbeSet {
+    /// Creates a new empty ProbeSet.
+    fn new() -> ProbeSet {
+        ProbeSet {
+            targets: HashMap::new(),
+            hooks: Vec::new(),
+        }
+    }
+
+    /// Attach all the probes and hook in the ProbeSet.
+    fn attach(
+        &mut self,
         #[cfg(not(test))] config_map: &mut libbpf_rs::Map,
         maps: HashMap<String, i32>,
-        hooks: Vec<Hook>,
     ) -> Result<()> {
-        if set.targets.is_empty() {
+        if self.targets.is_empty() {
             return Ok(());
         }
 
         // Initialize the probe builder, only once for all targets.
         let map_fds = maps.into_iter().collect();
         let mut builder = ProbeBuilder::new();
-        builder.init(map_fds, hooks)?;
+        builder.init(map_fds, self.hooks.clone())?;
 
         // Then handle all probes in the set.
-        for (_, probe) in set.targets.iter() {
+        for (_, probe) in self.targets.iter() {
             // First load the probe configuration.
             #[cfg(not(test))]
             match probe {
@@ -254,21 +268,6 @@ impl ProbeManager {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Default)]
-struct ProbeSet {
-    targets: HashMap<String, Probe>,
-    hooks: Vec<Hook>,
-}
-
-impl ProbeSet {
-    fn new() -> ProbeSet {
-        ProbeSet {
-            targets: HashMap::new(),
-            hooks: Vec::new(),
-        }
     }
 }
 
