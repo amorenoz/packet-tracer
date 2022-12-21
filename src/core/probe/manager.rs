@@ -178,7 +178,9 @@ impl ProbeManager {
         }
 
         // New target, let's build a new probe set.
-        let mut set = ProbeSet::new();
+        // Usdt probes do not support dynamic probes.
+        let supports_dynamic = !matches!(probe, Probe::Usdt(_));
+        let mut set = ProbeSet::new(supports_dynamic);
         set.targets.insert(key, probe);
 
         if self.dynamic_hooks.len() == HOOK_MAX {
@@ -206,7 +208,9 @@ impl ProbeManager {
         for tgt_probe in self.targeted_probes.iter_mut() {
             for set in tgt_probe.iter_mut() {
                 // Extend targeted hooks with dynamic ones.
-                set.hooks.extend(self.dynamic_hooks.iter().cloned());
+                if set.supports_dynamic {
+                    set.hooks.extend(self.dynamic_hooks.iter().cloned());
+                }
                 set.attach(
                     #[cfg(not(test))]
                     &mut self.config_map,
@@ -223,14 +227,16 @@ impl ProbeManager {
 struct ProbeSet {
     targets: HashMap<String, Probe>,
     hooks: Vec<Hook>,
+    supports_dynamic: bool,
 }
 
 impl ProbeSet {
     /// Creates a new empty ProbeSet.
-    fn new() -> ProbeSet {
+    fn new(supports_dynamic: bool) -> ProbeSet {
         ProbeSet {
             targets: HashMap::new(),
             hooks: Vec::new(),
+            supports_dynamic,
         }
     }
 
