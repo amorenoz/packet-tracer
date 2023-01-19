@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::Args;
 
 use super::skb_hook;
 use crate::{
@@ -8,6 +9,10 @@ use crate::{
 };
 
 const SKB_COLLECTOR: &str = "skb";
+
+#[derive(Args)]
+pub(crate) struct SkbCollectorArgs {
+}
 
 pub(crate) struct SkbCollector {}
 
@@ -25,7 +30,7 @@ impl Collector for SkbCollector {
     }
 
     fn register_cli(&self, cmd: &mut DynamicCommand) -> Result<()> {
-        cmd.register_module_noargs(SKB_COLLECTOR)
+        cmd.register_module::<SkbCollectorArgs>(SKB_COLLECTOR)
     }
 
     fn init(
