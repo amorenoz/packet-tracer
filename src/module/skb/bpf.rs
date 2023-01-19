@@ -4,7 +4,10 @@
 //!
 //! Please keep this file in sync with its BPF counterpart in bpf/skb_hook.bpf.c
 
-use std::mem;
+use std::{
+    mem,
+    net::{Ipv4Addr, Ipv6Addr},
+};
 
 use anyhow::{bail, Result};
 use plain::Plain;
@@ -33,6 +36,8 @@ where
 /// Valid raw event sections of the skb collector. We do not use an enum here as
 /// they are difficult to work with for bitfields and C repr conversion.
 pub(super) const SECTION_L2: u64 = 0;
+pub(super) const SECTION_IPV4: u64 = 1;
+pub(super) const SECTION_IPV6: u64 = 2;
 
 /// Global configuration passed down the BPF part.
 #[repr(C, packed)]
@@ -76,6 +81,72 @@ pub(super) fn unmarshal_l2(
             event.dst[0], event.dst[1], event.dst[2], event.dst[3], event.dst[4], event.dst[5],
         )
     ));
+
+    Ok(())
+}
+
+/// IPv4 data retrieved from SKBs.
+#[derive(Default)]
+#[repr(C, packed)]
+struct SkbIpv4Event {
+    /// Source IP address. Stored in network order.
+    src: u32,
+    /// Destination IP address. Stored in network order.
+    dst: u32,
+    /// IP packet length in bytes. Stored in network order.
+    len: u16,
+    /// L4 protocol.
+    protocol: u8,
+}
+unsafe impl Plain for SkbIpv4Event {}
+
+pub(super) fn unmarshal_ipv4(
+    raw_section: &BpfRawSection,
+    fields: &mut Vec<EventField>,
+) -> Result<()> {
+    let event = parse_event::<SkbIpv4Event>(raw_section)?;
+
+    let src = Ipv4Addr::from(u32::from_be(event.src));
+    fields.push(event_field!("saddr", format!("{}", src)));
+    let dst = Ipv4Addr::from(u32::from_be(event.dst));
+    fields.push(event_field!("daddr", format!("{}", dst)));
+
+    fields.push(event_field!("ip_version", 4));
+    fields.push(event_field!("l3_len", u16::from_be(event.len)));
+    fields.push(event_field!("protocol", event.protocol));
+
+    Ok(())
+}
+
+/// IPv6 data retrieved from SKBs.
+#[derive(Default)]
+#[repr(C, packed)]
+struct SkbIpv6Event {
+    /// Source IP address. Stored in network order.
+    src: u128,
+    /// Destination IP address. Stored in network order.
+    dst: u128,
+    /// IP packet length in bytes. Stored in network order.
+    len: u16,
+    /// L4 protocol.
+    protocol: u8,
+}
+unsafe impl Plain for SkbIpv6Event {}
+
+pub(super) fn unmarshal_ipv6(
+    raw_section: &BpfRawSection,
+    fields: &mut Vec<EventField>,
+) -> Result<()> {
+    let event = parse_event::<SkbIpv6Event>(raw_section)?;
+
+    let src = Ipv6Addr::from(u128::from_be(event.src));
+    fields.push(event_field!("saddr", format!("{}", src)));
+    let dst = Ipv6Addr::from(u128::from_be(event.dst));
+    fields.push(event_field!("daddr", format!("{}", dst)));
+
+    fields.push(event_field!("ip_version", 6));
+    fields.push(event_field!("l3_len", u16::from_be(event.len)));
+    fields.push(event_field!("protocol", event.protocol));
 
     Ok(())
 }

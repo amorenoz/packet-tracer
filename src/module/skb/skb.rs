@@ -21,8 +21,8 @@ pub(crate) struct SkbCollectorArgs {
         long,
         help = "Comma separated list of data to collect from SKBs.
 
-Possible values: all, l2.
-Default value:"
+Possible values: all, l2, l3.
+Default value: l3."
     )]
     skb_sections: Option<String>,
 }
@@ -61,9 +61,14 @@ impl Collector for SkbCollector {
                 match category {
                     "all" => sections |= !0_u64,
                     "l2" => sections |= 1 << SECTION_L2,
+                    "l3" => sections |= 1 << SECTION_IPV4 | 1 << SECTION_IPV6,
                     x => bail!("Unknown skb_collect value ({})", x),
                 }
             }
+        } else {
+            /* Default value */
+            sections |= 1 << SECTION_IPV4
+                | 1 << SECTION_IPV6;
         }
 
         // Register our event unmarshaler.
@@ -72,6 +77,8 @@ impl Collector for SkbCollector {
             Box::new(
                 |raw_section, fields, _| match raw_section.header.data_type as u64 {
                     SECTION_L2 => unmarshal_l2(raw_section, fields),
+                    SECTION_IPV4 => unmarshal_ipv4(raw_section, fields),
+                    SECTION_IPV6 => unmarshal_ipv6(raw_section, fields),
                     _ => bail!("Unknown data type"),
                 },
             ),
