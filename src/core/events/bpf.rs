@@ -353,6 +353,7 @@ pub(crate) enum BpfEventOwner {
     Kernel = 2,
     Userspace = 3,
     CollectorSkbTracking = 4,
+    CollectorSkb = 5,
 }
 
 impl BpfEventOwner {
@@ -363,6 +364,7 @@ impl BpfEventOwner {
             2 => Kernel,
             3 => Userspace,
             4 => CollectorSkbTracking,
+            5 => CollectorSkb,
             x => bail!("Can't construct a BpfEventOwner from {}", x),
         };
         Ok(owner)
@@ -375,6 +377,7 @@ impl BpfEventOwner {
             Kernel => "kernel",
             Userspace => "userspace",
             CollectorSkbTracking => "skb-tracking",
+            CollectorSkb => "skb",
         };
         Ok(ret)
     }
