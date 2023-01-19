@@ -21,8 +21,8 @@ pub(crate) struct SkbCollectorArgs {
         long,
         help = "Comma separated list of data to collect from SKBs.
 
-Possible values: all, l2, l3, tcp, udp.
-Default value: l3,tcp,udp."
+Possible values: all, l2, l3, tcp, udp, icmp.
+Default value: l3,tcp,udp,icmp."
     )]
     skb_sections: Option<String>,
 }
@@ -64,6 +64,7 @@ impl Collector for SkbCollector {
                     "l3" => sections |= 1 << SECTION_IPV4 | 1 << SECTION_IPV6,
                     "tcp" => sections |= 1 << SECTION_TCP,
                     "udp" => sections |= 1 << SECTION_UDP,
+                    "icmp" => sections |= 1 << SECTION_ICMP,
                     x => bail!("Unknown skb_collect value ({})", x),
                 }
             }
@@ -72,7 +73,8 @@ impl Collector for SkbCollector {
             sections |= 1 << SECTION_IPV4
                 | 1 << SECTION_IPV6
                 | 1 << SECTION_TCP
-                | 1 << SECTION_UDP;
+                | 1 << SECTION_UDP
+                | 1 << SECTION_ICMP;
         }
 
         // Register our event unmarshaler.
@@ -85,6 +87,7 @@ impl Collector for SkbCollector {
                     SECTION_IPV6 => unmarshal_ipv6(raw_section, fields),
                     SECTION_TCP => unmarshal_tcp(raw_section, fields),
                     SECTION_UDP => unmarshal_udp(raw_section, fields),
+                    SECTION_ICMP => unmarshal_icmp(raw_section, fields),
                     _ => bail!("Unknown data type"),
                 },
             ),
