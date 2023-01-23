@@ -1,0 +1,27 @@
+container:
+  image: rust:latest
+
+test_task:
+  registry_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  target_cache:
+    folder: target
+    fingerprint_script:
+      - rustc --version
+      - cat Cargo.lock
+  setup_script:
+    - apt-get update
+    - apt search linux-headers
+    - uname -r
+    - apt-get -y install llvm clang libelf-dev findutils linux-headers-$(uname -r)
+    - for file in $(find /usr/include -name errno.h); do echo "$file :"; echo ""; cat $file; done
+    - for file in $(find /usr/include -name errno.h); do echo $file; echo ""; cat $file; done
+    - rustup component add rustfmt
+    - rustup component add clippy
+  build_script: cargo build --verbose
+  test_script: cargo test --verbose
+  check_script:
+    - cargo fmt --check
+    - cargo clippy -- -D warnings
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
