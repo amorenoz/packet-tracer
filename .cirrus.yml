@@ -12,7 +12,11 @@ test_task:
       - cat Cargo.lock
   setup_script:
     - apt-get update
-    - apt-get -y install llvm clang libelf-dev
+    - apt search linux-headers
+    - uname -r
+    - apt-get -y install llvm clang libelf-dev findutils linux-headers-$(uname -r)
+    - for file in $(find /usr/include -name errno.h); do echo "$file :"; echo ""; cat $file; done
+    - for file in $(find /usr/include -name errno.h); do echo $file; echo ""; cat $file; done
     - rustup component add rustfmt
     - rustup component add clippy
   build_script: cargo build --verbose
