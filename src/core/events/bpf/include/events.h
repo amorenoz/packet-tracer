@@ -14,6 +14,7 @@ enum trace_event_owners {
 	USERSPACE = 3,
 	COLLECTOR_SKB_TRACKING = 4,
 	COLLECTOR_SKB = 5,
+	COLLECTOR_OVS = 6,
 };
 
 struct trace_raw_event {
