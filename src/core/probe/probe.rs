@@ -13,6 +13,8 @@ pub(crate) enum Probe {
     Kprobe(KernelProbe),
     RawTracepoint(KernelProbe),
     #[allow(dead_code)]
+    Fexit(KernelProbe),
+    #[allow(dead_code)]
     Usdt(UsdtProbe),
 }
 
@@ -21,6 +23,15 @@ impl Probe {
     pub(crate) fn kprobe(symbol: kernel::Symbol) -> Result<Probe> {
         match symbol {
             kernel::Symbol::Func(_) => Ok(Probe::Kprobe(KernelProbe::new(symbol)?)),
+            kernel::Symbol::Event(_) => bail!("Symbol cannot be probed with a kprobe"),
+        }
+    }
+
+    /// Create a new fexit.
+    #[allow(dead_code)]
+    pub(crate) fn fexit(symbol: kernel::Symbol) -> Result<Probe> {
+        match symbol {
+            kernel::Symbol::Func(_) => Ok(Probe::Fexit(KernelProbe::new_ret(symbol)?)),
             kernel::Symbol::Event(_) => bail!("Symbol cannot be probed with a kprobe"),
         }
     }
@@ -35,7 +46,7 @@ impl Probe {
 }
 
 // Use mem::variant_count::<Probe>() when available in stable.
-pub(crate) const PROBE_VARIANTS: usize = 3;
+pub(crate) const PROBE_VARIANTS: usize = 4;
 
 impl Probe {
     /// We do use probe types as indexes, the following makes it easy.
@@ -43,7 +54,8 @@ impl Probe {
         match self {
             Probe::Kprobe(_) => 0,
             Probe::RawTracepoint(_) => 1,
-            Probe::Usdt(_) => 2,
+            Probe::Fexit(_) => 2,
+            Probe::Usdt(_) => 3,
         }
     }
 }
@@ -54,6 +66,7 @@ impl fmt::Display for Probe {
         match self {
             Probe::Kprobe(symbol) => write!(f, "kprobe:{}", symbol),
             Probe::RawTracepoint(symbol) => write!(f, "raw_tracepoint:{}", symbol),
+            Probe::Fexit(symbol) => write!(f, "fexit:{}", symbol),
             Probe::Usdt(symbol) => write!(f, "usdt {}", symbol),
         }
     }

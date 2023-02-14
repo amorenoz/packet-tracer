@@ -26,6 +26,7 @@ struct trace_probe_offsets {
  * core::probe::kernel::config.
  */
 struct trace_probe_config {
+	u8 ret;		/* return value */
 	struct trace_probe_offsets offsets;
 } __attribute__((packed));
 
@@ -99,6 +100,11 @@ struct trace_context {
 	TRACE_GET(ctx, net_device, struct net_device *)
 #define trace_get_net(ctx)		\
 	TRACE_GET(ctx, net, struct net *)
+
+/* Places return code into dst returnning 0 on success or -1 on failure. */
+#define trace_get_ret(ctx, dst)	\
+	(((ctx->ret) && (ctx->regs.num < REG_MAX)) ?		\
+	 (*dst = trace_get_param(ctx, ctx->ret, typeof(dst)), 0): -1)
 
 /* Helper to define a hook (mostly in collectors) while not having to duplicate
  * the common part everywhere. This also ensure hooks are doing the right thing

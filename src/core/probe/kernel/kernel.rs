@@ -27,6 +27,7 @@ pub(crate) struct KernelProbe {
 }
 
 impl KernelProbe {
+    /// Create new KernelProbe.
     pub(crate) fn new(symbol: Symbol) -> Result<Self> {
         let desc = inspect_symbol(&symbol)?;
         Ok(KernelProbe {
@@ -34,6 +35,21 @@ impl KernelProbe {
             ksym: desc.ksym,
             nargs: desc.nargs,
             config: ProbeConfig {
+                ret: 0,
+                offsets: desc.offsets,
+            },
+        })
+    }
+
+    /// Create new KernelProbe with return value information (e.g: kretprobe, fexit).
+    pub(crate) fn new_ret(symbol: Symbol) -> Result<Self> {
+        let desc = inspect_symbol(&symbol)?;
+        Ok(KernelProbe {
+            symbol,
+            ksym: desc.ksym,
+            nargs: desc.nargs,
+            config: ProbeConfig {
+                ret: 1,
                 offsets: desc.offsets,
             },
         })

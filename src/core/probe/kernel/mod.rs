@@ -24,6 +24,7 @@ pub(crate) mod kernel;
 pub(crate) use kernel::*;
 
 pub(crate) mod config;
+pub(in crate::core::probe) mod fexit;
 mod inspect;
 pub(in crate::core::probe) mod kprobe;
 pub(in crate::core::probe) mod raw_tracepoint;

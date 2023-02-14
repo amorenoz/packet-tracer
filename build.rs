@@ -147,6 +147,7 @@ fn main() {
     // core::probe::kernel
     build_probe("src/core/probe/kernel/bpf/kprobe.bpf.c");
     build_probe("src/core/probe/kernel/bpf/raw_tracepoint.bpf.c");
+    build_probe("src/core/probe/kernel/bpf/fexit.bpf.c");
     build_probe("src/core/probe/user/bpf/usdt.bpf.c");
 
     build_hook("src/module/skb/bpf/skb_hook.bpf.c");

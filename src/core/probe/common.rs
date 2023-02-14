@@ -24,7 +24,7 @@ pub(crate) fn set_ebpf_debug(debug: bool) -> Result<()> {
 pub(crate) fn get_ebpf_debug() -> bool {
     // Always debug when running tests.
     if cfg!(test) {
-        true
+        false
     } else {
         *EBPF_DEBUG.get_or_init(|| false)
     }

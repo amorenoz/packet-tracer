@@ -31,6 +31,9 @@ impl Default for ProbeOffsets {
 #[derive(Default)]
 #[repr(C, packed)]
 pub(crate) struct ProbeConfig {
+    /// Whether this probe supports return value. (0: no, 1: yes)
+    pub(super) ret: u8,
+    /// Offsets to important arguments.
     pub(super) offsets: ProbeOffsets,
 }
 
