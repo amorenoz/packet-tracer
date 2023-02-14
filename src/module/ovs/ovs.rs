@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 
-use super::{bpf::*, kernel_upcall_tp, user_recv_upcall};
+use super::{bpf::*, kernel_upcall_tp, user_op_exec, user_op_put, user_recv_upcall};
 
 use crate::{
     cli::{dynamic::DynamicCommand, CliConfig},
@@ -52,6 +52,8 @@ impl Collector for OvsCollector {
                 match event_type {
                     OvsEventType::Upcall => unmarshall_upcall(raw_section, fields)?,
                     OvsEventType::RecvUpcall => unmarshall_recv(raw_section, fields)?,
+                    OvsEventType::OpFlowPut => unmarshall_op_put(raw_section, fields)?,
+                    OvsEventType::OpFlowExec => unmarshall_op_exec(raw_section, fields)?,
                 }
                 fields.push(event_field!("type", event_type.to_str_ref()?.to_string()));
                 Ok(())
@@ -104,6 +106,12 @@ impl OvsCollector {
 
         let recv_upcall = Probe::Usdt(UsdtProbe::new(&ovs, "dpif_recv::recv_upcall")?);
         probes.register_hook_to(Hook::from(user_recv_upcall::DATA), recv_upcall)?;
+
+        let op_exec = Probe::Usdt(UsdtProbe::new(&ovs, "dpif_netlink_operate__::op_flow_exec")?);
+        probes.register_hook_to(Hook::from(user_op_exec::DATA), op_exec)?;
+
+        let op_put = Probe::Usdt(UsdtProbe::new(&ovs, "dpif_netlink_operate__::op_flow_put")?);
+        probes.register_hook_to(Hook::from(user_op_put::DATA), op_exec)?;
 
         Ok(())
     }

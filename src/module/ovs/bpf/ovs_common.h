@@ -5,6 +5,8 @@
 enum trace_ovs_data_type {
 	OVS_DP_UPCALL =	0,
 	OVS_RECV_UPCALL = 1,
+	OVS_OP_FLOW_PUT = 2,
+	OVS_OP_FLOW_EXECUTE = 3,
 };
 
 #endif /* __MODULE_OVS_COMMON__ */

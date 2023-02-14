@@ -19,6 +19,10 @@ pub(crate) enum OvsEventType {
     Upcall = 0,
     /// Upcall received in userspace.
     RecvUpcall = 1,
+    /// Flow Put Operation
+    OpFlowPut = 2,
+    /// Flow Exec Operation
+    OpFlowExec = 3,
 }
 
 impl OvsEventType {
@@ -27,6 +31,8 @@ impl OvsEventType {
         let owner = match val {
             0 => Upcall,
             1 => RecvUpcall,
+            2 => OpFlowPut,
+            3 => OpFlowExec,
             x => bail!("Can't construct a OvsEventType from {}", x),
         };
         Ok(owner)
@@ -37,6 +43,8 @@ impl OvsEventType {
         let ret = match self {
             Upcall => "upcall",
             RecvUpcall => "recv_upcall",
+            OpFlowPut => "op_flow_put",
+            OpFlowExec => "op_flow_exec",
         };
         Ok(ret)
     }
@@ -81,5 +89,32 @@ pub(super) fn unmarshall_recv(raw: &BpfRawSection, fields: &mut Vec<EventField>)
     fields.push(event_field!("upcall_type", event.r#type));
     fields.push(event_field!("pkt_size", event.pkt_size));
     fields.push(event_field!("key_size", event.key_size));
+    Ok(())
+}
+
+/// OVS Operation Flow Put data.
+#[derive(Default)]
+#[repr(C, packed)]
+struct OpFlowPut {
+}
+unsafe impl Plain for OpFlowPut {}
+
+pub(super) fn unmarshall_op_put(raw: &BpfRawSection, fields: &mut Vec<EventField>) -> Result<()> {
+    let event = parse_raw_section::<OpFlowPut>(raw)?;
+
+    Ok(())
+}
+
+
+/// OVS Operation Flow Exec data.
+#[derive(Default)]
+#[repr(C, packed)]
+struct OpFlowExec {
+}
+unsafe impl Plain for OpFlowExec {}
+
+pub(super) fn unmarshall_op_exec(raw: &BpfRawSection, fields: &mut Vec<EventField>) -> Result<()> {
+    let event = parse_raw_section::<OpFlowExec>(raw)?;
+
     Ok(())
 }

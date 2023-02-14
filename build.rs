@@ -158,6 +158,8 @@ fn main() {
     build_hook("src/module/skb_tracking/bpf/tracking_hook.bpf.c");
     build_hook("src/module/ovs/bpf/kernel_upcall_tp.bpf.c");
     build_hook("src/module/ovs/bpf/user_recv_upcall.bpf.c");
+    build_hook("src/module/ovs/bpf/user_op_exec.bpf.c");
+    build_hook("src/module/ovs/bpf/user_op_put.bpf.c");
 
     build_extract_stub("src/core/filters/packets/bpf/stub.bpf.c");
 
