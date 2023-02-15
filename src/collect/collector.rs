@@ -197,6 +197,7 @@ impl Group {
         match type_str {
             "kprobe" => Ok(Probe::kprobe(symbol)?),
             "tp" => Ok(Probe::raw_tracepoint(symbol)?),
+            "fexit" => Ok(Probe::fexit(symbol)?),
             x => bail!("Invalid TYPE {}. See the help.", x),
         }
     }
