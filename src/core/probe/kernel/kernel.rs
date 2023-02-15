@@ -33,7 +33,9 @@ impl KernelProbe {
             symbol,
             ksym: desc.ksym,
             nargs: desc.nargs,
-            config: desc.probe_cfg,
+            config: ProbeConfig {
+                offsets: desc.offsets,
+            },
         })
     }
 }

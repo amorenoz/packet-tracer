@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::config::ProbeConfig;
+use super::config::ProbeOffsets;
 use crate::core::kernel::Symbol;
 
 /// Holds the result of a kernel symbol inspection and describes it.
@@ -11,7 +11,7 @@ pub(super) struct TargetDesc {
     /// Number of arguments the symbol has.
     pub(super) nargs: u32,
     /// Holds the different offsets to known parameters.
-    pub(super) probe_cfg: ProbeConfig,
+    pub(super) offsets: ProbeOffsets,
 }
 
 /// Inspect a target using BTF and fill its description.
@@ -27,16 +27,16 @@ pub(super) fn inspect_symbol(symbol: &Symbol) -> Result<TargetDesc> {
 
     // Look for known parameter types.
     if let Some(offset) = symbol.parameter_offset("struct sk_buff *")? {
-        desc.probe_cfg.offsets.sk_buff = offset as i8;
+        desc.offsets.sk_buff = offset as i8;
     }
     if let Some(offset) = symbol.parameter_offset("enum skb_drop_reason")? {
-        desc.probe_cfg.offsets.skb_drop_reason = offset as i8;
+        desc.offsets.skb_drop_reason = offset as i8;
     }
     if let Some(offset) = symbol.parameter_offset("struct net_device *")? {
-        desc.probe_cfg.offsets.net_device = offset as i8;
+        desc.offsets.net_device = offset as i8;
     }
     if let Some(offset) = symbol.parameter_offset("struct net *")? {
-        desc.probe_cfg.offsets.net = offset as i8;
+        desc.offsets.net = offset as i8;
     }
 
     Ok(desc)
@@ -55,10 +55,10 @@ mod tests {
         let desc = desc.unwrap();
         assert!(desc.ksym == 0xffffffff983c29a0);
         assert!(desc.nargs == 3);
-        assert!(desc.probe_cfg.offsets.sk_buff == 0);
-        assert!(desc.probe_cfg.offsets.skb_drop_reason == 2);
-        assert!(desc.probe_cfg.offsets.net_device == -1);
-        assert!(desc.probe_cfg.offsets.net == -1);
+        assert!(desc.offsets.sk_buff == 0);
+        assert!(desc.offsets.skb_drop_reason == 2);
+        assert!(desc.offsets.net_device == -1);
+        assert!(desc.offsets.net == -1);
 
         // Inspect a function.
         let desc = super::inspect_symbol(&Symbol::from_name("kfree_skb_reason").unwrap());
@@ -67,10 +67,10 @@ mod tests {
         let desc = desc.unwrap();
         assert!(desc.ksym == 0xffffffff95612980);
         assert!(desc.nargs == 2);
-        assert!(desc.probe_cfg.offsets.sk_buff == 0);
-        assert!(desc.probe_cfg.offsets.skb_drop_reason == 1);
-        assert!(desc.probe_cfg.offsets.net_device == -1);
-        assert!(desc.probe_cfg.offsets.net == -1);
+        assert!(desc.offsets.sk_buff == 0);
+        assert!(desc.offsets.skb_drop_reason == 1);
+        assert!(desc.offsets.net_device == -1);
+        assert!(desc.offsets.net == -1);
 
         // Inspect a function with net device and netns arguments.
         let desc = super::inspect_symbol(&Symbol::from_name("inet_dev_addr_type").unwrap());
@@ -79,9 +79,9 @@ mod tests {
         let desc = desc.unwrap();
         assert!(desc.ksym == 0xffffffff959754a0);
         assert!(desc.nargs == 3);
-        assert!(desc.probe_cfg.offsets.sk_buff == -1);
-        assert!(desc.probe_cfg.offsets.skb_drop_reason == -1);
-        assert!(desc.probe_cfg.offsets.net_device == 1);
-        assert!(desc.probe_cfg.offsets.net == 0);
+        assert!(desc.offsets.sk_buff == -1);
+        assert!(desc.offsets.skb_drop_reason == -1);
+        assert!(desc.offsets.net_device == 1);
+        assert!(desc.offsets.net == 0);
     }
 }
