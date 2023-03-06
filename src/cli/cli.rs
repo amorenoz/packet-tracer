@@ -14,6 +14,7 @@ use clap::{
 
 use super::dynamic::DynamicCommand;
 use crate::collect::cli::Collect;
+use crate::process::cli::Process;
 
 /// SubCommand defines the way to handle SubCommands.
 /// SubCommands arguments are parsed in two rounds, the "thin" and the "full" round.
@@ -268,6 +269,7 @@ impl CliConfig {
 pub(crate) fn get_cli() -> Result<ThinCli> {
     let mut cli = ThinCli::new()?;
     cli.add_subcommand(Box::new(Collect::new()?))?;
+    cli.add_subcommand(Box::new(Process::new()?))?;
     Ok(cli)
 }
 

@@ -6,6 +6,7 @@ mod cli;
 mod collect;
 mod core;
 mod module;
+mod process;
 use cli::get_cli;
 use collect::get_collectors;
 
@@ -42,6 +43,9 @@ fn main() -> Result<()> {
 
             // Starts a loop.
             collectors.process(&config)?;
+        }
+        "process" => {
+            cli.run()?;
         }
         _ => {
             error!("not implemented");
