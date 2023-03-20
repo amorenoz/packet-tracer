@@ -9,9 +9,8 @@ use crate::{
         probe::{user::UsdtProbe, Hook, Probe, ProbeManager},
         user::proc::Process,
     },
+    module::ModuleId,
 };
-
-const OVS_COLLECTOR: &str = "ovs";
 
 pub(crate) struct OvsCollector {}
 
@@ -20,12 +19,8 @@ impl Collector for OvsCollector {
         Ok(OvsCollector {})
     }
 
-    fn name(&self) -> &'static str {
-        OVS_COLLECTOR
-    }
-
     fn register_cli(&self, cmd: &mut DynamicCommand) -> Result<()> {
-        cmd.register_module_noargs(OVS_COLLECTOR)
+        cmd.register_module_noargs(ModuleId::Ovs.to_str())
     }
 
     fn init(
