@@ -5,14 +5,13 @@ use anyhow::{bail, Result};
 use log::{debug, info};
 
 #[cfg(not(test))]
-use super::kernel::config::{init_config_map, init_stack_map};
+use super::kernel::config::init_config_map;
 use super::*;
 use super::{
     builder::ProbeBuilder,
     kernel::{kprobe, kretprobe, raw_tracepoint},
     user::usdt,
 };
-use crate::core::events::bpf::BpfEvents;
 
 // Keep in sync with their BPF counterparts in bpf/include/common.h
 pub(crate) const PROBE_MAX: usize = 128; // TODO add checks on probe registration.
@@ -46,7 +45,7 @@ pub(crate) struct ProbeManager {
 }
 
 impl ProbeManager {
-    pub(crate) fn new(events: &mut BpfEvents) -> Result<ProbeManager> {
+    pub(crate) fn new() -> Result<ProbeManager> {
         // Keep synced with the order of Probe::into::<usize>()!
         let dynamic_probes: [ProbeSet; probe::PROBE_VARIANTS] = [
             ProbeSet::new(Box::new(kprobe::KprobeBuilder::new()), true),
@@ -58,6 +57,7 @@ impl ProbeManager {
 
         // When testing the kernel object is not modified later to reuse the
         // config map is this map is hidden.
+        #[allow(unused_mut)]
         let mut mgr = ProbeManager {
             dynamic_probes,
             dynamic_hooks: Vec::new(),
@@ -71,19 +71,7 @@ impl ProbeManager {
         #[cfg(not(test))]
         mgr.maps
             .insert("config_map".to_string(), mgr.config_map.fd());
-        mgr.maps.insert("events_map".to_string(), events.map_fd());
 
-        #[cfg(not(test))]
-        let sm = init_stack_map()?;
-        #[cfg(not(test))]
-        mgr.maps.insert("stack_map".to_string(), sm.fd());
-
-        kernel::register_unmarshaler(
-            events,
-            #[cfg(not(test))]
-            sm,
-        )?;
-        user::register_unmarshaler(events)?;
         Ok(mgr)
     }
 
@@ -354,8 +342,7 @@ mod tests {
 
     #[test]
     fn add_probe() {
-        let mut events = BpfEvents::new().unwrap();
-        let mut mgr = ProbeManager::new(&mut events).unwrap();
+        let mut mgr = ProbeManager::new().unwrap();
 
         assert!(mgr.add_probe(kprobe!("kfree_skb_reason")).is_ok());
         assert!(mgr.add_probe(kprobe!("consume_skb")).is_ok());
@@ -367,8 +354,7 @@ mod tests {
 
     #[test]
     fn register_hooks() {
-        let mut events = BpfEvents::new().unwrap();
-        let mut mgr = ProbeManager::new(&mut events).unwrap();
+        let mut mgr = ProbeManager::new().unwrap();
 
         assert!(mgr.register_kernel_hook(Hook::from(HOOK)).is_ok());
         assert!(mgr.register_kernel_hook(Hook::from(HOOK)).is_ok());
@@ -408,8 +394,7 @@ mod tests {
 
     #[test]
     fn reuse_map() {
-        let mut events = BpfEvents::new().unwrap();
-        let mut mgr = ProbeManager::new(&mut events).unwrap();
+        let mut mgr = ProbeManager::new().unwrap();
 
         assert!(mgr.reuse_map("config", 0).is_ok());
         assert!(mgr.reuse_map("event", 0).is_ok());
