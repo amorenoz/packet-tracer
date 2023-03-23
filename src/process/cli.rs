@@ -3,7 +3,7 @@
 //! Process is a dnymaic CLI subcommand to allow importing events from a log
 //! file and post-process them.
 
-use std::any::Any;
+use std::{any::Any, path::PathBuf};
 
 use anyhow::Result;
 use clap::{error::Error as ClapError, ArgMatches, Args, Command, FromArgMatches};
@@ -11,7 +11,10 @@ use clap::{error::Error as ClapError, ArgMatches, Args, Command, FromArgMatches}
 use crate::cli::SubCommand;
 
 #[derive(Args, Debug, Default)]
-pub(crate) struct Process {}
+pub(crate) struct Process {
+    #[arg(help = "Import events from the given file")]
+    pub(super) file: PathBuf,
+}
 
 impl SubCommand for Process {
     fn new() -> Result<Self> {

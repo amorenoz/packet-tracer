@@ -9,6 +9,7 @@ mod module;
 mod process;
 use cli::get_cli;
 use collect::get_collectors;
+use process::PostProcess;
 
 // Re-export derive macros.
 use retis_derive::*;
@@ -45,7 +46,7 @@ fn main() -> Result<()> {
             collectors.process(&config)?;
         }
         "process" => {
-            cli.run()?;
+            let _pp = PostProcess::new(cli.run()?)?;
         }
         _ => {
             error!("not implemented");
