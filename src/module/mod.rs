@@ -8,6 +8,10 @@
 pub(crate) mod module;
 pub(crate) use module::*;
 
+// Re-export group.rs
+pub(crate) mod group;
+pub(crate) use group::*;
+
 pub(crate) mod ovs;
 pub(crate) mod skb;
 pub(crate) mod skb_tracking;
