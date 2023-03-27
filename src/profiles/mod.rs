@@ -8,3 +8,5 @@
 pub(crate) mod profiles;
 #[allow(unused_imports)]
 pub(crate) use profiles::*;
+
+pub(crate) mod cli;

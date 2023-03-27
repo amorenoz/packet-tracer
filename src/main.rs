@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::error;
 use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
 
@@ -11,6 +11,7 @@ mod profiles;
 use cli::get_cli;
 use collect::get_collectors;
 use process::PostProcess;
+use profiles::cli::ProfileCmd;
 
 // Re-export derive macros.
 use retis_derive::*;
@@ -48,6 +49,15 @@ fn main() -> Result<()> {
         }
         "process" => {
             let _pp = PostProcess::new(cli.run()?)?;
+        }
+        "profile" => {
+            let config = cli.run()?;
+            config
+                .subcommand
+                .as_any()
+                .downcast_ref::<ProfileCmd>()
+                .ok_or_else(|| anyhow!("wrong subcommand"))?
+                .run(&config)?;
         }
         _ => {
             error!("not implemented");

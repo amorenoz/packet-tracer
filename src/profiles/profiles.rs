@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use rhai::{Engine, AST};
 
 /// Rai implementation of a Profile
-struct Profile {
+pub(crate) struct Profile {
     engine: Engine,
     ast: AST,
 }
