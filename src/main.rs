@@ -7,6 +7,7 @@ mod collect;
 mod core;
 mod module;
 mod process;
+mod profiles;
 use cli::get_cli;
 use collect::get_collectors;
 use process::PostProcess;
