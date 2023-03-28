@@ -2,7 +2,10 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{anyhow, bail, Result};
-use rhai::{Engine, AST};
+use log::debug;
+use rhai::{Engine, Scope, AST};
+
+use crate::{collect::cli::CollectArgs, core::kernel::inspect};
 
 /// Rai implementation of a Profile
 pub(crate) struct Profile {
@@ -39,5 +42,68 @@ impl Profile {
             .iter_functions()
             .find(|s| s.name == "process")
             .is_some())
+    }
+
+    pub fn collect(&mut self, args: &mut CollectArgs) -> Result<()> {
+        /// Main API for Collection Profiles
+        #[derive(Default, Debug, Clone)]
+        struct CollectProfile {
+            collectors: Vec<String>,
+            probes: Vec<String>,
+        }
+
+        impl CollectProfile {
+            fn new() -> CollectProfile {
+                CollectProfile::default()
+            }
+            fn add_collector(&mut self, collector: String) {
+                // FIXME: We could make some checks here?
+                self.collectors.push(collector);
+            }
+            fn add_probe(&mut self, probe: String) {
+                // FIXME: We could make some checks here?
+                self.probes.push(probe);
+            }
+        }
+
+        // Functions to make available for symbol inspection. Enums are not supported so unwrapping
+        // them.
+        fn is_event_traceable(name: String) -> bool {
+            inspect::is_event_traceable(name.as_str())
+                .unwrap_or(Some(false))
+                .unwrap_or(false)
+        }
+        fn is_function_traceable(name: String) -> bool {
+            inspect::is_function_traceable(name.as_str())
+                .unwrap_or(Some(false))
+                .unwrap_or(false)
+        }
+
+        self.engine
+            .register_type_with_name::<CollectProfile>("CollectProfile")
+            .register_fn("collect_profile", CollectProfile::new)
+            .register_fn("add_collector", CollectProfile::add_collector)
+            .register_fn("add_probe", CollectProfile::add_probe)
+            .register_fn("is_event_traceable", is_event_traceable)
+            .register_fn("is_function_traceable", is_function_traceable);
+
+        let mut scope = Scope::new();
+        let mut collect = self
+            .engine
+            .call_fn::<CollectProfile>(&mut scope, &self.ast, "collect", ())
+            .map_err(|e| anyhow!("Failure running profile collect configuration: {:?}", e))?;
+        debug!("Processed profile with result {:#?}", collect);
+
+        // Fill collectors and probes to main config
+        for collector in collect.collectors.drain(..) {
+            // FIXME: Handle duplicates
+            args.collectors.push(collector);
+        }
+        // Fill collectors and probes to main config
+        for probe in collect.probes.drain(..) {
+            // FIXME: Handle duplicates
+            args.probes.push(probe);
+        }
+        Ok(())
     }
 }

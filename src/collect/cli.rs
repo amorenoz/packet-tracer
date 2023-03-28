@@ -22,11 +22,11 @@ pub(crate) struct CollectArgs {
         help = "Include stack traces in the kernel events. The stack entries are limited and
 not released. If exhausted, no stack trace will be included."
     )]
-    pub(super) stack: bool,
+    pub(crate) stack: bool,
     // Some of the options that we want for this arg are not available in clap's derive interface
     // so both the argument definition and the field population will be done manually.
     #[arg(skip)]
-    pub(super) collectors: Vec<String>,
+    pub(crate) collectors: Vec<String>,
     // Use the plural in the struct but singular for the cli parameter as we're
     // dealing with a list here.
     #[arg(
@@ -43,7 +43,7 @@ Valid TYPEs:
 
 Example: --probe tp:skb:kfree_skb --probe kprobe:consume_skb"
     )]
-    pub(super) probes: Vec<String>,
+    pub(crate) probes: Vec<String>,
     #[arg(short, long, help = "Write the events to a file rather than to sdout.")]
     pub(super) out: Option<PathBuf>,
     #[arg(
@@ -51,7 +51,7 @@ Example: --probe tp:skb:kfree_skb --probe kprobe:consume_skb"
         help = "Write the events to stdout even if --out is used.",
         default_value = "false"
     )]
-    pub(super) print: bool,
+    pub(crate) print: bool,
 }
 
 #[derive(Debug)]

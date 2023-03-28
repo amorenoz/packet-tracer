@@ -138,7 +138,7 @@ pub(super) fn find_nearest_symbol(target: u64) -> Result<u64> {
 }
 
 /// Check if an event is traceable. Return Ok(None) if we can't know.
-pub(super) fn is_event_traceable(name: &str) -> Result<Option<bool>> {
+pub(crate) fn is_event_traceable(name: &str) -> Result<Option<bool>> {
     let set = &get_inspector!()?.traceable_events;
 
     // If we can't check further, we don't know if the event is traceable and we
@@ -152,7 +152,7 @@ pub(super) fn is_event_traceable(name: &str) -> Result<Option<bool>> {
 }
 
 /// Check if an event is traceable. Return Ok(None) if we can't know.
-pub(super) fn is_function_traceable(name: &str) -> Result<Option<bool>> {
+pub(crate) fn is_function_traceable(name: &str) -> Result<Option<bool>> {
     let set = &get_inspector!()?.traceable_funcs;
 
     // If we can't check further, we don't know if the function is traceable and
