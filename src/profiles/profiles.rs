@@ -5,7 +5,11 @@ use anyhow::{anyhow, bail, Result};
 use log::debug;
 use rhai::{Engine, Scope, AST};
 
-use crate::{collect::cli::CollectArgs, core::kernel::inspect};
+use crate::{
+    cli::CliConfig,
+    collect::cli::{Collect, CollectArgs},
+    core::kernel::inspect,
+};
 
 /// Rai implementation of a Profile
 pub(crate) struct Profile {
@@ -106,4 +110,19 @@ impl Profile {
         }
         Ok(())
     }
+}
+
+pub(crate) fn enhance_collect(cli: &mut CliConfig) -> Result<()> {
+    let collect = cli
+        .subcommand
+        .as_any_mut()
+        .downcast_mut::<Collect>()
+        .ok_or_else(|| anyhow!("wrong subcommand"))?;
+
+    for path in &cli.main_config.profiles {
+        // FIXME: Implement a name-based search over a well-known list of directories
+        let mut profile = Profile::load(PathBuf::from(path))?;
+        profile.collect(collect.args_mut()?)?;
+    }
+    Ok(())
 }

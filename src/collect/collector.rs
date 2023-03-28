@@ -103,6 +103,9 @@ impl Collectors {
 
         // Try initializing all collectors in the group.
         for name in &collect.args()?.collectors {
+            if name.eq("none") {
+                continue;
+            }
             let id = ModuleId::from_str(name)?;
             let c = self
                 .group

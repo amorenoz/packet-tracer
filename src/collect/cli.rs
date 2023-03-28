@@ -105,8 +105,9 @@ impl SubCommand for Collect {
 
         // Determine all registerd collectors and specify both the possible values and the default
         // value of the "collectors" argument
-        let possible_collectors =
+        let mut possible_collectors =
             Vec::from_iter(self.collectors.modules().iter().map(|x| x.to_owned()));
+        possible_collectors.push("none".to_string());
 
         let full_command = self
             .collectors
@@ -116,7 +117,8 @@ impl SubCommand for Collect {
             .long_about(long_about)
             .mut_arg("collectors", |a| {
                 a.value_parser(PossibleValuesParser::new(possible_collectors.clone()))
-                    .default_value(possible_collectors.join(","))
+                    .default_value("none")
+                    .required(false)
             });
 
         Ok(full_command)
@@ -152,5 +154,9 @@ impl Collect {
     /// Returns the main Collect arguments
     pub(crate) fn args(&self) -> Result<&CollectArgs> {
         Ok(&self.args)
+    }
+    /// Returns the main Collect arguments as mutable
+    pub(crate) fn args_mut(&mut self) -> Result<&mut CollectArgs> {
+        Ok(&mut self.args)
     }
 }

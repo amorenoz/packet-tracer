@@ -11,7 +11,7 @@ mod profiles;
 use cli::get_cli;
 use collect::get_collectors;
 use process::PostProcess;
-use profiles::cli::ProfileCmd;
+use profiles::{cli::ProfileCmd, enhance_collect};
 
 // Re-export derive macros.
 use retis_derive::*;
@@ -39,8 +39,8 @@ fn main() -> Result<()> {
             let mut collectors = get_collectors()?;
 
             collectors.register_cli(command.dynamic_mut().unwrap())?;
-            let config = cli.run()?;
-
+            let mut config = cli.run()?;
+            enhance_collect(&mut config)?;
             collectors.init(&config)?;
             collectors.start(&config)?;
 

@@ -1,0 +1,22 @@
+// Example UDP profile
+
+// Example: specify the version
+fn version() {
+    return "0.0.1"
+}
+
+// Function to collect data
+fn collect() {
+    let config = collect_profile();
+
+    config.add_collector("skb");
+    config.add_collector("skb-tracking");
+    config.add_probe("kfree_skb_reason");
+    config.add_probe("kprobe:udp_send_skb");
+
+    return config;
+}
+
+// Function to process events
+fn process(event) {
+}

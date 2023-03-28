@@ -92,6 +92,13 @@ pub(crate) struct MainConfig {
         help = "Log level",
     )]
     pub(crate) log_level: String,
+
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Comma separated list of profiles to use"
+    )]
+    pub(crate) profiles: Vec<String>,
 }
 
 /// ThinCli handles the first (a.k.a "thin") round of Command Line Interface parsing.
