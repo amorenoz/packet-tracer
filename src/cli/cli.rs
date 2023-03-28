@@ -42,6 +42,12 @@ pub(crate) trait SubCommand {
     /// subcommand-specific functionality.
     fn as_any(&self) -> &dyn Any;
 
+    /// Returns self as a mutable std::any::Any trait.
+    ///
+    /// This is useful for dynamically downcast the SubCommand into it's specific type to access
+    /// subcommand-specific functionality.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     /// Generate the clap Command to be used for "thin" parsing.
     fn thin(&self) -> Result<Command>;
 
@@ -296,6 +302,9 @@ mod tests {
         fn as_any(&self) -> &dyn Any {
             self
         }
+        fn as_any_mut(&mut self) -> &mut dyn Any {
+            self
+        }
         fn thin(&self) -> Result<Command> {
             Ok(Command::new("sub1").about("does some things"))
         }
@@ -325,6 +334,9 @@ mod tests {
             "sub2"
         }
         fn as_any(&self) -> &dyn Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn Any {
             self
         }
         fn thin(&self) -> Result<Command> {
