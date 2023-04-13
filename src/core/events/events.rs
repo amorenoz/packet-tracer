@@ -102,6 +102,8 @@ pub(crate) trait EventFactory {
     /// given, in such case None can be returned. Specific factories should
     /// document those behaviors.
     fn next_event(&mut self, timeout: Option<Duration>) -> Result<Option<Event>>;
+    /// Return itself as Any
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// Per-module event section, should map 1:1 with a ModuleId. Requiring specific

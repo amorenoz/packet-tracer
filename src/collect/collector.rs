@@ -9,8 +9,9 @@ use super::{
     output::{get_processors, JsonFormat},
 };
 use crate::{
-    cli::{dynamic::DynamicCommand, CliConfig, FullCli},
+    cli::{dynamic::DynamicCommand, CliConfig, FullCli, SubCommandRunner},
     core::{
+        events::bpf::BpfEventsFactory,
         filters::{
             filters::{BpfFilter, Filter},
             packets::filter::FilterPacket,
@@ -56,35 +57,49 @@ pub(crate) trait Collector {
     }
 }
 
-/// Main collectors object and API.
-pub(crate) struct Collectors {
+/// Runner for the "collect" subcommand.
+pub(crate) struct RunCollect {
     modules: Modules,
     retis: Retis,
-    cli: CliConfig,
     known_kernel_types: HashSet<String>,
 }
 
-impl Collectors {
-    pub(crate) fn new(mut modules: Modules, retis: Retis, mut cli: FullCli) -> Result<Self> {
+impl SubCommandRunner for RunCollect {
+    fn new(mut modules: Modules) -> Result<RunCollect> {
+        let factory = BpfEventsFactory::new()?;
+        let event_map_fd = factory.map_fd();
+        let mut retis = Retis::new(Box::new(factory));
+
+        // We do enable probing when collecting events.
+        retis.enable_probes(&mut modules, event_map_fd)?;
+
+        Ok(RunCollect {
+            modules,
+            retis,
+            known_kernel_types: HashSet::new(),
+        })
+    }
+
+    fn run(&mut self, mut cli: FullCli) -> Result<()> {
         // Register all collectors' command line arguments. Cli registration
         // errors are fatal.
         let cmd = cli.get_subcommand_mut()?.dynamic_mut().unwrap();
-        modules
+        self.modules
             .collectors()
             .iter()
             .try_for_each(|(_, c)| c.register_cli(cmd))?;
 
         // Now we can parse all parameters.
-        let cli = cli.run()?;
-
-        Ok(Collectors {
-            modules,
-            retis,
-            known_kernel_types: HashSet::new(),
-            cli,
-        })
+        let mut cli = cli.run()?;
+        self.init(&mut cli)?;
+        self.start()?;
+        // Starts a loop.
+        self.process(&mut cli)?;
+        Ok(())
     }
+}
 
+impl RunCollect {
     /// Setup user defined input filter.
     fn setup_filters(probes: &mut ProbeManager, collect: &Collect) -> Result<()> {
         if let Some(f) = &collect.args()?.packet_filter {
@@ -96,9 +111,8 @@ impl Collectors {
     }
 
     /// Initialize all collectors by calling their `init()` function.
-    pub(crate) fn init(&mut self) -> Result<()> {
-        let collect = self
-            .cli
+    pub(crate) fn init(&mut self, cli: &mut CliConfig) -> Result<()> {
+        let collect = cli
             .subcommand
             .as_any()
             .downcast_ref::<Collect>()
@@ -119,7 +133,7 @@ impl Collectors {
                 .get_collector(&id)
                 .ok_or_else(|| anyhow!("unknown collector {}", name))?;
 
-            if let Err(e) = c.init(&self.cli, &mut self.retis) {
+            if let Err(e) = c.init(cli, &mut self.retis) {
                 bail!("Could not initialize the {} collector: {}", id, e);
             }
 
@@ -170,9 +184,8 @@ impl Collectors {
     /// Starts the processing loop and block until we get a single SIGINT
     /// (e.g. ctrl+c), then return after properly cleaning up. This is the main
     /// collector cmd loop.
-    pub(crate) fn process(&mut self) -> Result<()> {
-        let collect = self
-            .cli
+    pub(crate) fn process(&mut self, cli: &mut CliConfig) -> Result<()> {
+        let collect = cli
             .subcommand
             .as_any()
             .downcast_ref::<Collect>()

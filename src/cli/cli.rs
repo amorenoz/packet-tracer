@@ -13,7 +13,41 @@ use clap::{
 };
 
 use super::dynamic::DynamicCommand;
-use crate::{collect::cli::Collect, module::ModuleId};
+use crate::{
+    collect::cli::Collect,
+    module::{ModuleId, Modules},
+};
+
+/// A SubCommandRunner defines the common interface to run SubCommands.
+/// Each SubCommand must define a SubCommandRunner
+pub(crate) trait SubCommandRunner {
+    /// Create the runner with a set of modules.
+    fn new(modules: Modules) -> Result<Self>
+    where
+        Self: Sized;
+    /// Create the runner with a set of modules, a main API object and a cli object.
+    fn run(&mut self, cli: FullCli) -> Result<()>;
+}
+
+/// Trait used to create a SubCommandRunner
+pub(crate) trait SubCommandRunnerFactory {
+    fn create_runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>>;
+}
+
+/// Trait to bind a SubCommand to its Runner to avoid using associated types in Boxed traits.
+pub(crate) trait SubCommandBinding {
+    type Runner: SubCommandRunner + 'static;
+    fn runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>> {
+        Ok(Box::new(Self::Runner::new(modules)?))
+    }
+}
+
+// Implement SubCommandRunnerFactory for all types that imiplement SubCommandBinding.
+impl<A, B: SubCommandBinding<Runner = A>> SubCommandRunnerFactory for B {
+    fn create_runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>> {
+        self.runner(modules)
+    }
+}
 
 /// SubCommand defines the way to handle SubCommands.
 /// SubCommands arguments are parsed in two rounds, the "thin" and the "full" round.
@@ -25,7 +59,12 @@ use crate::{collect::cli::Collect, module::ModuleId};
 /// subcommand was called, there is a moment where modules can dynamically register command line
 /// arguments with the apropriate SubCommand. After, the Cli will run the "full" parsing during
 /// which argument validation will be performend.
-pub(crate) trait SubCommand {
+pub(crate) trait SubCommand: SubCommandRunnerFactory {
+    /// Create the runner with a set of modules, a main API object and a cli object.
+    fn runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>> {
+        self.create_runner(modules)
+    }
+
     /// Allocate and return a new instance of a SubCommand.
     fn new() -> Result<Self>
     where
