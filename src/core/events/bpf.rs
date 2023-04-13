@@ -255,6 +255,10 @@ pub(crate) struct CommonEvent {
 
 unsafe impl Plain for CommonEvent {}
 
+impl EventSectionBinding for CommonEvent {
+    type Event = CommonEvent;
+}
+
 impl RawEventSectionFactory for CommonEvent {
     fn from_raw(&mut self, mut raw_sections: Vec<BpfRawSection>) -> Result<Box<dyn EventSection>> {
         if raw_sections.len() != 1 {

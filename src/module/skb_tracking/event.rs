@@ -40,3 +40,7 @@ impl RawEventSectionFactory for SkbTrackingEvent {
         )?))
     }
 }
+
+impl EventSectionBinding for SkbTrackingEvent {
+    type Event = SkbTrackingEvent;
+}

@@ -46,6 +46,10 @@ pub(crate) struct OvsEvent {
     pub(crate) return_code: Option<i32>, // Shouldn't we reuse "r#return"?
 }
 
+impl EventSectionBinding for OvsEvent {
+    type Event = OvsEvent;
+}
+
 impl RawEventSectionFactory for OvsEvent {
     fn from_raw(&mut self, raw_sections: Vec<BpfRawSection>) -> Result<Box<dyn EventSection>> {
         let mut event = OvsEvent::default();

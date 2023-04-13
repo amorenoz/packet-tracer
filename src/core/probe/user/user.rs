@@ -73,6 +73,10 @@ pub(crate) struct UserEvent {
     cache: HashMap<String, Box<dyn Any>>,
 }
 
+impl EventSectionBinding for UserEvent {
+    type Event = UserEvent;
+}
+
 impl RawEventSectionFactory for UserEvent {
     fn from_raw(&mut self, mut raw_sections: Vec<BpfRawSection>) -> Result<Box<dyn EventSection>> {
         if raw_sections.len() != 1 {

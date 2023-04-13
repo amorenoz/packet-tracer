@@ -69,6 +69,10 @@ pub(crate) struct KernelEvent {
     pub(crate) stack_map: Option<libbpf_rs::Map>,
 }
 
+impl EventSectionBinding for KernelEvent {
+    type Event = KernelEvent;
+}
+
 impl KernelEvent {
     #[cfg(not(test))]
     fn unmarshal_stackid(&self, event: &mut KernelEvent, stackid: i32) -> Result<()> {

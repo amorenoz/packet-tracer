@@ -163,3 +163,29 @@ pub(crate) trait RawEventSectionFactory {
 pub(crate) trait SerdeEventSectionFactory {
     fn from_json(&self, val: serde_json::Value) -> Result<Box<dyn EventSection>>;
 }
+
+/// EventSectionBinding is a trait used to bind the EventSectionFactory to the EventSection it
+/// produces.
+///
+/// It must be implemented by EventSectionFactories to bind it's EventSection.
+// We cannot just add the associated type to SerdeEventSectionFactory because EventSectionFactory
+// depends on it so we would have to specify the type every time we Box<dyn EventSectionFactory>
+// (i.e: use Box<dyn EventSectionFactory<Event=T>>).
+// In order make the EventSection type present when we unmarshal, we define a binding trait with a
+// default implementation and an associated type.
+// EventFactory instances must implement it just setting the Event type.
+pub(crate) trait EventSectionBinding {
+    /// The event section type.
+    type Event: for<'a> serde::Deserialize<'a> + EventSection + 'static;
+
+    fn from_json(&self, val: serde_json::Value) -> Result<Box<dyn EventSection>> {
+        Ok(Box::new(serde_json::from_value::<Self::Event>(val)?))
+    }
+}
+
+// Implement SerdeEventSectionFactory for every type that implements EventSectionBinding
+impl<A, B: EventSectionBinding<Event = A>> SerdeEventSectionFactory for B {
+    fn from_json(&self, val: serde_json::Value) -> Result<Box<dyn EventSection>> {
+        self.from_json(val)
+    }
+}

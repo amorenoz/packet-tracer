@@ -67,8 +67,11 @@ pub(crate) struct SkbEvent {
 }
 
 #[derive(Default, EventSectionFactory)]
-#[event_section(SkbEvent)]
 pub(crate) struct SkbEventFactory {}
+
+impl EventSectionBinding for SkbEventFactory {
+    type Event = SkbEvent;
+}
 
 impl RawEventSectionFactory for SkbEventFactory {
     fn from_raw(&mut self, raw_sections: Vec<BpfRawSection>) -> Result<Box<dyn EventSection>> {
