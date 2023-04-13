@@ -3,7 +3,7 @@
 #![cfg_attr(test, allow(dead_code))]
 #![cfg_attr(test, allow(unused_imports))]
 
-use std::{collections::HashMap, mem, sync::mpsc, thread, time::Duration};
+use std::{any::Any, collections::HashMap, mem, sync::mpsc, thread, time::Duration};
 
 use anyhow::{anyhow, bail, Result};
 use log::error;
@@ -116,6 +116,10 @@ impl EventFactory for BpfEventsFactory {
             },
             None => Some(rxc.recv()?),
         })
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

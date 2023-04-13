@@ -11,7 +11,7 @@ use super::{
 #[cfg(not(test))]
 use crate::core::probe::kernel::{config::init_stack_map, kernel::KernelEventFactory};
 use crate::{
-    cli::{dynamic::DynamicCommand, CliConfig, FullCli},
+    cli::{dynamic::DynamicCommand, CliConfig, FullCli, SubCommandRunner},
     core::{
         events::{bpf::BpfEventsFactory, EventFactory},
         filters::{
@@ -21,7 +21,7 @@ use crate::{
         kernel::Symbol,
         probe::{self, Probe, ProbeManager},
     },
-    module::{get_modules, ModuleId, Modules},
+    module::{ModuleId, Modules},
 };
 
 /// Generic trait representing a collector. All collectors are required to
@@ -58,28 +58,17 @@ pub(crate) trait Collector {
     }
 }
 
-/// Main collectors object and API.
-pub(crate) struct Collectors {
+/// Runner for the "collect" subcommand.
+pub(crate) struct RunCollect {
     modules: Modules,
     probes: probe::ProbeManager,
-    cli: CliConfig,
     factory: Box<dyn EventFactory>,
     known_kernel_types: HashSet<String>,
 }
 
-impl Collectors {
-    #[allow(unused_mut)] // For tests.
-    fn new(mut modules: Modules, mut cli: FullCli, factory: Box<dyn EventFactory>) -> Result<Self> {
-        // Register all collectors' command line arguments. Cli registration
-        // errors are fatal.
-        let cmd = cli.get_subcommand_mut()?.dynamic_mut().unwrap();
-        modules
-            .collectors()
-            .iter()
-            .try_for_each(|(_, c)| c.register_cli(cmd))?;
-
-        // Now we can parse all parameters.
-        let cli = cli.run()?;
+impl SubCommandRunner for RunCollect {
+    fn new(mut modules: Modules) -> Result<Self> {
+        let factory = BpfEventsFactory::new()?;
 
         #[cfg(not(test))]
         let mut probes = probe::ProbeManager::new()?;
@@ -90,6 +79,8 @@ impl Collectors {
         let sm = init_stack_map()?;
         #[cfg(not(test))]
         probes.reuse_map("stack_map", sm.fd())?;
+        #[cfg(not(test))]
+        probes.reuse_map("events_map", factory.map_fd())?;
 
         #[cfg(not(test))]
         match modules.get_section_factory::<KernelEventFactory>(ModuleId::Kernel)? {
@@ -97,15 +88,34 @@ impl Collectors {
             None => bail!("Can't get kernel section factory"),
         }
 
-        Ok(Collectors {
+        Ok(RunCollect {
             modules,
             probes,
             known_kernel_types: HashSet::new(),
-            cli,
-            factory,
+            factory: Box::new(factory),
         })
     }
 
+    fn run(&mut self, mut cli: FullCli) -> Result<()> {
+        // Register all collectors' command line arguments. Cli registration
+        // errors are fatal.
+        let cmd = cli.get_subcommand_mut()?.dynamic_mut().unwrap();
+        self.modules
+            .collectors()
+            .iter()
+            .try_for_each(|(_, c)| c.register_cli(cmd))?;
+
+        // Now we can parse all parameters.
+        let mut cli = cli.run()?;
+        self.init(&mut cli)?;
+        self.start()?;
+        // Starts a loop.
+        self.process(&mut cli)?;
+        Ok(())
+    }
+}
+
+impl RunCollect {
     /// Setup user defined input filter.
     fn setup_filters(probes: &mut ProbeManager, collect: &Collect) -> Result<()> {
         if let Some(f) = &collect.args()?.packet_filter {
@@ -117,9 +127,8 @@ impl Collectors {
     }
 
     /// Initialize all collectors by calling their `init()` function.
-    pub(crate) fn init(&mut self) -> Result<()> {
-        let collect = self
-            .cli
+    pub(crate) fn init(&mut self, cli: &mut CliConfig) -> Result<()> {
+        let collect = cli
             .subcommand
             .as_any()
             .downcast_ref::<Collect>()
@@ -138,7 +147,7 @@ impl Collectors {
                 .get_collector(&id)
                 .ok_or_else(|| anyhow!("unknown collector {}", name))?;
 
-            if let Err(e) = c.init(&self.cli, &mut self.probes) {
+            if let Err(e) = c.init(&cli, &mut self.probes) {
                 bail!("Could not initialize the {} collector: {}", id, e);
             }
 
@@ -152,15 +161,10 @@ impl Collectors {
         }
 
         // Setup user defined probes.
-        let mut probes = Vec::new();
-        collect.args()?.probes.iter().try_for_each(|p| {
-            probes.push(self.parse_probe(p)?);
-            Ok::<(), anyhow::Error>(())
+        collect.args()?.probes.iter().try_for_each(|p| -> Result<()> {
+            self.probes.add_probe(self.parse_probe(p)?)?;
+            Ok(())
         })?;
-        probes
-            .drain(..)
-            .try_for_each(|p| self.probes.add_probe(p))?;
-
         Self::setup_filters(&mut self.probes, collect)?;
         Ok(())
     }
@@ -188,9 +192,8 @@ impl Collectors {
     /// Starts the processing loop and block until we get a single SIGINT
     /// (e.g. ctrl+c), then return after properly cleaning up. This is the main
     /// collector cmd loop.
-    pub(crate) fn process(&mut self) -> Result<()> {
-        let collect = self
-            .cli
+    pub(crate) fn process(&mut self, cli: &mut CliConfig) -> Result<()> {
+        let collect = cli
             .subcommand
             .as_any()
             .downcast_ref::<Collect>()
@@ -272,19 +275,6 @@ impl Collectors {
             x => bail!("Invalid TYPE {}. See the help.", x),
         }
     }
-}
-
-/// Allocate collectors and retrieve a group containing them, used to perform
-/// batched operations. This is the primary entry point for manipulating the
-/// collectors.
-pub(crate) fn get_collectors(cli: FullCli) -> Result<Collectors> {
-    let factory = BpfEventsFactory::new()?;
-    let event_map_fd = factory.map_fd();
-
-    let mut collectors = Collectors::new(get_modules()?, cli, Box::new(factory))?;
-    collectors.probes.reuse_map("events_map", event_map_fd)?;
-
-    Ok(collectors)
 }
 
 #[cfg(test)]

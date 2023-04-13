@@ -13,7 +13,21 @@ use clap::{
 };
 
 use super::dynamic::DynamicCommand;
-use crate::{collect::cli::Collect, module::ModuleId};
+use crate::{
+    collect::cli::Collect,
+    module::{ModuleId, Modules},
+};
+
+/// A SubCommandRunner defines the common interface to run SubCommands.
+/// Each SubCommand must define a SubCommandRunner
+pub(crate) trait SubCommandRunner {
+    /// Create the runner with a set of modules.
+    fn new(modules: Modules) -> Result<Self>
+    where
+        Self: Sized;
+    /// Create the runner with a set of modules, a main API object and a cli object.
+    fn run(&mut self, cli: FullCli) -> Result<()>;
+}
 
 /// SubCommand defines the way to handle SubCommands.
 /// SubCommands arguments are parsed in two rounds, the "thin" and the "full" round.
@@ -64,6 +78,9 @@ pub(crate) trait SubCommand {
     fn dynamic_mut(&mut self) -> Option<&mut DynamicCommand> {
         None
     }
+
+    /// Return a SubCommandRunner capable of running this command.
+    fn runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>>;
 }
 
 impl Debug for dyn SubCommand {

@@ -10,7 +10,9 @@ use clap::{
     {builder::PossibleValuesParser, error::ErrorKind, Arg, ArgMatches, Args, Command},
 };
 
-use crate::cli::{dynamic::DynamicCommand, SubCommand};
+use super::RunCollect;
+use crate::cli::{dynamic::DynamicCommand, SubCommand, *};
+use crate::module::Modules;
 
 #[derive(Args, Debug, Default)]
 pub(crate) struct CollectArgs {
@@ -151,6 +153,10 @@ impl SubCommand for Collect {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn runner(&self, modules: Modules) -> Result<Box<dyn SubCommandRunner>> {
+        Ok(Box::new(RunCollect::new(modules)?))
     }
 }
 
