@@ -34,10 +34,21 @@ DEFINE_USDT_HOOK (
 	struct recv_upcall_event *recv_event;
 	u32 size = (u32) ctx->args[3];
 	u32 queue_id = queue_id_gen((void *) ctx->args[2], size);
+	bool filtered = false;
 
-	batch = batch_process_recv(ctx->timestamp, queue_id);
+	if (!bpf_map_lookup_elem(&inflight_enqueue, &queue_id)) {
+	    /* The upcall enqueue event was missed or filtered. */
+	    filtered = true;
+	}
+	bpf_map_delete_elem(&inflight_enqueue, &queue_id);
+
+
+	batch = batch_process_recv(ctx->timestamp, queue_id, filtered);
 	if (!batch)
 		return -1;
+
+	if (filtered)
+		return 0;
 
 	recv_event = get_event_zsection(event, COLLECTOR_OVS, OVS_RECV_UPCALL,
 					sizeof(*recv_event));
