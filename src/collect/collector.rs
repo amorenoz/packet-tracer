@@ -20,7 +20,7 @@ use crate::{
         },
         kernel::Symbol,
         probe::{self, Probe, ProbeManager},
-        tracking::skb_tracking::init_tracking,
+        tracking::{garbage::TrackingGC, skb_tracking::init_tracking},
     },
     module::{get_modules, ModuleId, Modules},
 };
@@ -66,6 +66,7 @@ pub(crate) struct Collectors {
     cli: CliConfig,
     factory: Box<dyn EventFactory>,
     known_kernel_types: HashSet<String>,
+    tracking_gc: Option<TrackingGC>,
 }
 
 impl Collectors {
@@ -104,6 +105,7 @@ impl Collectors {
             known_kernel_types: HashSet::new(),
             cli,
             factory,
+            tracking_gc: None,
         })
     }
 
@@ -154,7 +156,7 @@ impl Collectors {
 
         // Initialize tracking & filters.
         if self.known_kernel_types.contains("struct sk_buff *") {
-            init_tracking(&mut self.probes)?;
+            self.tracking_gc = Some(init_tracking(&mut self.probes)?);
         }
         Self::setup_filters(&mut self.probes, collect)?;
 
