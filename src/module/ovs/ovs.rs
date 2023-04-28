@@ -1,9 +1,7 @@
-use std::{collections::HashMap, mem, thread, time::Duration};
+use std::{collections::HashMap, mem, time::Duration};
 
 use anyhow::{anyhow, bail, Result};
 use clap::{arg, Parser};
-use log::warn;
-use nix::time;
 
 use super::hooks;
 use crate::{
@@ -12,8 +10,9 @@ use crate::{
     core::{
         kernel::Symbol,
         probe::{user::UsdtProbe, Hook, Probe, ProbeManager},
+        signals::Running,
+        tracking::gc::TrackingGC,
         user::proc::{Process, ThreadInfo},
-        workaround::SendableMap,
     },
     module::ModuleId,
 };
@@ -45,10 +44,10 @@ pub(crate) struct OvsCollector {
     inflight_upcalls_map: Option<libbpf_rs::Map>,
     inflight_exec_map: Option<libbpf_rs::Map>,
 
-    /* Tracking file descriptors (the maps are owned by the GC's thread) */
+    /* Tracking file descriptors (the maps are owned by the GC) */
     flow_exec_tracking_fd: i32,
     inflight_enqueue_map_fd: i32,
-    garbage_collector: Option<thread::JoinHandle<()>>,
+    gc: Option<TrackingGC>,
     /* Batch tracking maps. */
     upcall_batches: Option<libbpf_rs::Map>,
     pid_to_batch: Option<libbpf_rs::Map>,
@@ -83,6 +82,20 @@ impl Collector for OvsCollector {
         // Add USDT hooks.
         if self.track {
             self.add_usdt_hooks(probes)?;
+        }
+        Ok(())
+    }
+
+    fn start(&mut self, state: Running) -> Result<()> {
+        if let Some(mut gc) = self.gc.take() {
+            gc.start(state)?;
+        }
+        Ok(())
+    }
+
+    fn stop(&mut self) -> Result<()> {
+        if let Some(mut gc) = self.gc.take() {
+            gc.join()?;
         }
         Ok(())
     }
@@ -371,55 +384,21 @@ impl OvsCollector {
         self.inflight_enqueue_map_fd = inflight_enqueue_map.fd();
         self.flow_exec_tracking_fd = flow_exec_tracking.fd();
 
-        let mut tracking_maps = HashMap::from([
-            ("infligth_enqueue", SendableMap::from(inflight_enqueue_map)),
-            ("flow_exec_tracking", SendableMap::from(flow_exec_tracking)),
+        let tracking_maps = HashMap::from([
+            ("enqueue_tracking", inflight_enqueue_map),
+            ("flow_exec_tracking", flow_exec_tracking),
         ]);
 
-        // Take care of gargabe collection of tracking info. This should be done
-        // in the BPF part for most if not all upcalls, but we might lose some
-        // events so this garbage collector periodically cleans stale tracking information
-        self.garbage_collector = Some(thread::spawn(move || {
-            //let tracking_map = tracking_map.get_mut();
-
-            loop {
-                // Let's run every OVS_TRACKING_GC_INTERVAL seconds.
-                thread::sleep(Duration::from_secs(OVS_TRACKING_GC_INTERVAL));
-                let now =
-                    Duration::from(time::clock_gettime(time::ClockId::CLOCK_MONOTONIC).unwrap());
-
-                // Loop through the tracking map entries and see if we see old
-                // ones we should remove manually.
-                for (name, map) in tracking_maps.iter_mut() {
-                    let map = map.get_mut();
-                    let mut to_remove = Vec::new();
-                    for key in map.keys() {
-                        if let Ok(Some(raw)) = map.lookup(&key, libbpf_rs::MapFlags::ANY) {
-                            // Get the timesmap associated with the entry.
-                            let insert_time = u64::from_ne_bytes(raw[0..8].try_into().unwrap());
-                            // Remove old entries. Actually put them on a remove
-                            // list as we can't live remove them here (we already
-                            // have a reference to the map).
-                            let last_seen = Duration::from_nanos(insert_time);
-                            if now.saturating_sub(last_seen)
-                                > Duration::from_secs(TRACKING_OLD_LIMIT)
-                            {
-                                to_remove.push(key);
-                            }
-                        }
-                    }
-                    // Actually remove the outdated entries and issue a warning as
-                    // while it can be expected, it should not happen too often.
-                    for key in to_remove {
-                        map.delete(&key).ok();
-                        warn!(
-                            "Removed old entry from {name} tracking map: {:#x}",
-                            u32::from_ne_bytes(key[..4].try_into().unwrap())
-                        );
-                    }
-                }
-            }
-        }));
+        self.gc = Some(
+            TrackingGC::new(tracking_maps, |v| {
+                let insert_time =
+                    u64::from_ne_bytes(v[0..8].try_into().map_err(|e| anyhow!("{:?}", e))?);
+                Ok(Duration::from_nanos(insert_time))
+            })
+            .name("ovs-tracking-gc")
+            .interval(OVS_TRACKING_GC_INTERVAL)
+            .limit(TRACKING_OLD_LIMIT),
+        );
         Ok(())
     }
 }
