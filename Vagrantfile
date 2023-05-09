@@ -31,8 +31,8 @@ Vagrant.configure("2") do |config|
     fedora.vm.synced_folder ".", "/vagrant", type: "rsync"
   end
 
-  config.vm.define "f36" do |fedora|
-    fedora.vm.box = "fedora/36-cloud-base"
+  config.vm.define "f37" do |fedora|
+    fedora.vm.box = "fedora/37-cloud-base"
 
     fedora.vm.provision "common", type: "shell", inline: $bootstrap_rhel_common
     fedora.vm.provision "shell", inline: <<-SHELL
