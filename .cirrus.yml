@@ -22,7 +22,8 @@ unittest_task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 functional_task:
-  required_pr_labels: needs-functional-test
+  required_pr_labels: run-functional-test
+  trigger_type: manual
   env:
     DEBIAN_FRONTEND: noninteractive
     HOME: /root
