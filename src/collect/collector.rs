@@ -3,7 +3,6 @@ use std::{
     fs::OpenOptions,
     io::{self, BufWriter, Write},
     thread::JoinHandle,
-    time::Duration,
 };
 
 use anyhow::{anyhow, bail, Result};
@@ -28,6 +27,7 @@ use crate::{
     },
     module::{ModuleId, Modules},
     output,
+    process::Processor,
 };
 
 /// Generic trait representing a collector. All collectors are required to
@@ -185,6 +185,30 @@ impl Collectors {
     /// Start the event retrieval for all collectors by calling
     /// their `start()` function.
     pub(crate) fn start(&mut self) -> Result<()> {
+        // Attach probes and start collectors.
+        self.probes.attach()?;
+
+        self.modules.collectors().iter_mut().for_each(|(id, c)| {
+            if c.start().is_err() {
+                warn!("Could not start collector '{id}'");
+            }
+        });
+        Ok(())
+    }
+
+    /// Starts the processing loop and block until we get a single SIGINT
+    /// (e.g. ctrl+c), then return after properly cleaning up. This is the main
+    /// collector cmd loop.
+    pub(crate) fn process(&mut self, cli: &mut CliConfig) -> Result<()> {
+        let collect = cli
+            .subcommand
+            .as_any()
+            .downcast_ref::<Collect>()
+            .ok_or_else(|| anyhow!("wrong subcommand"))?
+            .args()?;
+
+        // Create factories.
+        #[cfg_attr(test, allow(unused_mut))]
         let mut section_factories = self.modules.section_factories()?;
 
         #[cfg(not(test))]
@@ -205,17 +229,14 @@ impl Collectors {
             }
         }
 
-        self.factory.start(section_factories)?;
-
-        self.probes.attach()?;
-
-        self.modules.collectors().iter_mut().for_each(|(id, c)| {
-            if c.start().is_err() {
-                warn!("Could not start collector '{id}'");
-            }
-        });
-
-        Ok(())
+        // Create Processor and configure outputs
+        let mut process = Processor::new(&mut self.factory)?;
+        for o in Self::get_outputs(collect)?.drain(..) {
+            process.add_output(o)?;
+        }
+        // Start processing.
+        process.run(self.run.clone(), section_factories)?;
+        self.stop()
     }
 
     /// Stop the event retrieval for all collectors in the group by calling
@@ -241,30 +262,6 @@ impl Collectors {
         self.factory.stop()?;
 
         Ok(())
-    }
-
-    /// Starts the processing loop and block until we get a single SIGINT
-    /// (e.g. ctrl+c), then return after properly cleaning up. This is the main
-    /// collector cmd loop.
-    pub(crate) fn process(&mut self, cli: &mut CliConfig) -> Result<()> {
-        let collect = cli
-            .subcommand
-            .as_any()
-            .downcast_ref::<Collect>()
-            .ok_or_else(|| anyhow!("wrong subcommand"))?
-            .args()?;
-
-        let mut outputs = Self::get_outputs(collect)?;
-
-        while self.run.running() {
-            match self.factory.next_event(Some(Duration::from_secs(1)))? {
-                Some(event) => outputs.iter_mut().try_for_each(|p| p.output_one(&event))?,
-                None => continue,
-            }
-        }
-
-        outputs.iter_mut().try_for_each(|p| p.flush())?;
-        self.stop()
     }
 
     /// Parse a user defined probe (through cli parameters) and extract its type and
