@@ -55,10 +55,12 @@ pub(crate) trait Collector {
     /// documentation for more information.
     fn init(&mut self, cli: &CliConfig, probes: &mut probe::ProbeManager) -> Result<()>;
     /// Start the collector.
-    fn start(&mut self) -> Result<()> {
+    /// The state can be used to flag spawned threads that they should finish.
+    fn start(&mut self, _state: Running) -> Result<()> {
         Ok(())
     }
     /// Stop the collector.
+    /// Any spawned thread shall be joined now.
     fn stop(&mut self) -> Result<()> {
         Ok(())
     }
@@ -201,7 +203,7 @@ impl Collectors {
         self.probes.attach()?;
 
         self.modules.collectors().iter_mut().for_each(|(id, c)| {
-            if c.start().is_err() {
+            if c.start(self.run.clone()).is_err() {
                 warn!("Could not start collector '{id}'");
             }
         });
@@ -350,7 +352,7 @@ mod tests {
         fn init(&mut self, _: &CliConfig, _: &mut probe::ProbeManager) -> Result<()> {
             Ok(())
         }
-        fn start(&mut self) -> Result<()> {
+        fn start(&mut self, _: Running) -> Result<()> {
             Ok(())
         }
     }
@@ -368,7 +370,7 @@ mod tests {
         fn init(&mut self, _: &CliConfig, _: &mut probe::ProbeManager) -> Result<()> {
             bail!("Could not initialize")
         }
-        fn start(&mut self) -> Result<()> {
+        fn start(&mut self, _: Running) -> Result<()> {
             bail!("Could not start");
         }
     }
@@ -491,8 +493,10 @@ mod tests {
 
         let mut collectors = new_collectors(group)?;
 
-        assert!(dummy_a.start().is_ok());
-        assert!(dummy_b.start().is_err());
+        let run = Running::new();
+
+        assert!(dummy_a.start(run.clone()).is_ok());
+        assert!(dummy_b.start(run.clone()).is_err());
         assert!(collectors.start().is_ok());
         Ok(())
     }
