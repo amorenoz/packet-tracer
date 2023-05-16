@@ -90,7 +90,7 @@ impl TrackingGC {
                             let age = match (extract_age)(raw) {
                                 Ok(age) => age,
                                 Err(e) => {
-                                    error!("{name}: entry age extraction failed for key {}: {e}", Self::format_key(&map, key));
+                                    error!("{name}: entry age extraction failed for key {}: {e}", Self::format_key(map, key));
                                     continue;
                                 }
                             };
@@ -106,7 +106,7 @@ impl TrackingGC {
                     // while it can be expected, it should not happen too often.
                     for key in to_remove {
                         map.delete(&key).ok();
-                        warn!("Removed old entry from {name} tracking map: {}", Self::format_key(&map, key));
+                        warn!("Removed old entry from {name} tracking map: {}", Self::format_key(map, key));
                     }
                 }
             }
