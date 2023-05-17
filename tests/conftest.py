@@ -5,7 +5,10 @@ import pytest
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--ovs-track", action="store_true", default=False, help="run ovs userspace tracking tests "
+        "--ovs-track",
+        action="store_true",
+        default=False,
+        help="run ovs userspace tracking tests ",
     )
 
 

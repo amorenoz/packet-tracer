@@ -11,7 +11,7 @@ unittest_task:
       - cat Cargo.lock
   setup_script:
     - apt-get update
-    - apt-get -y install llvm clang libelf-dev libpcap-dev
+    - apt-get -y install llvm clang libelf-dev libpcap-dev python3
     - rustup component add rustfmt
     - rustup component add clippy
   build_script: cargo build --verbose
@@ -19,6 +19,9 @@ unittest_task:
   check_script:
     - cargo fmt --check
     - cargo clippy -- -D warnings
+  python_check_script:
+    - pip3 install black
+    - python3 -m black --check
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 functional_task:
