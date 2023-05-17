@@ -21,7 +21,7 @@ unittest_task:
     - cargo clippy -- -D warnings
   python_check_script:
     - python3 -m pip install black
-    - python3 -m black --check tests/*.py
+    - python3 -m black --check --diff tests/*.py
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 functional_task:

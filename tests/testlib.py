@@ -203,10 +203,11 @@ def run(cmd):
 
 def assert_events_present(events, expected):
     """Asserts a list of expected events are present in the event list in the
-    same order. The expected events can be specified as a subset of the event."""
+    same order. The expected events can be specified as a subset of the event.
+    """
     idx = 0
     aliases = {}
-    for (ex_idx, ex) in enumerate(expected):
+    for ex_idx, ex in enumerate(expected):
         found = False
         # Find an event that matches
         for i in range(idx, len(events)):
