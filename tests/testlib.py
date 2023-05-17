@@ -16,9 +16,9 @@ class Retis:
     events for verification.
     """
 
-    def __init__(self):
+    def __init__(self, target="release"):
         self.binary = join(
-            dirname(dirname(abspath(__file__))), "target", "debug", "retis"
+            dirname(dirname(abspath(__file__))), "target", target, "retis"
         )
         self.tempdir = mkdtemp()
         self._events = []
