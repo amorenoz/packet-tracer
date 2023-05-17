@@ -31,9 +31,7 @@ class Retis:
         Note that "--output" argument is automatically added so that events can
         then be parsed.
         """
-        cmd = (
-            [self.binary, "collect"] + list(args) + ["-o", self._event_file()]
-        )
+        cmd = [self.binary, "collect"] + list(args) + ["-o", self._event_file()]
         print(f"running command: {cmd}")
         self.proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -51,9 +49,7 @@ class Retis:
             outs, errs = self.proc.communicate()
 
         print(
-            "Command: '{}'. stdtout {}, stderr = {}".format(
-                self.proc.args, outs, errs
-            )
+            "Command: '{}'. stdtout {}, stderr = {}".format(self.proc.args, outs, errs)
         )
 
         if exists(self._event_file()) and getsize(self._event_file()) > 0:
@@ -203,10 +199,11 @@ def run(cmd):
 
 def assert_events_present(events, expected):
     """Asserts a list of expected events are present in the event list in the
-    same order. The expected events can be specified as a subset of the event."""
+    same order. The expected events can be specified as a subset of the event.
+    """
     idx = 0
     aliases = {}
-    for (ex_idx, ex) in enumerate(expected):
+    for ex_idx, ex in enumerate(expected):
         found = False
         # Find an event that matches
         for i in range(idx, len(events)):
@@ -267,8 +264,7 @@ def is_subset(superset, subset, aliases):
         if key not in superset:
             return (
                 False,
-                f"{subset} is not a subset of {superset}."
-                f" key {key} is not present",
+                f"{subset} is not a subset of {superset}." f" key {key} is not present",
             )
 
         # Handle aliases

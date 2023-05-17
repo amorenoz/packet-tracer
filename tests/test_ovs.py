@@ -2,7 +2,7 @@ import pytest
 
 from pyroute2 import IPRoute
 
-from testlib import ovs, netns, Retis, assert_events_present
+from testlib import Retis, assert_events_present
 
 
 @pytest.fixture
@@ -95,9 +95,7 @@ def gen_expected_events(skb):
             },
             "ovs": {"event_type": "upcall"},
             "skb": skb,
-            "skb-tracking": {
-                "orig_head": "&orig_head"  # Store orig_head in aliases
-            },
+            "skb-tracking": {"orig_head": "&orig_head"},  # Store orig_head in aliases
         },
         # Packet is enqueued for upcall (only 1, i.e: no fragmentation
         # expected).
@@ -111,9 +109,7 @@ def gen_expected_events(skb):
                 "queue_id": "&queue_id",  # Store queue_id
             },
             "skb": skb,
-            "skb-tracking": {
-                "orig_head": "*orig_head"  # Check same orig_head
-            },
+            "skb-tracking": {"orig_head": "*orig_head"},  # Check same orig_head
         },
         # Upcall ends.
         {
@@ -125,9 +121,7 @@ def gen_expected_events(skb):
                 "event_type": "upcall_return",
             },
             "skb": skb,
-            "skb-tracking": {
-                "orig_head": "*orig_head"  # Check same orig_head
-            },
+            "skb-tracking": {"orig_head": "*orig_head"},  # Check same orig_head
         },
         # Upcall is received by userspace.
         {
@@ -276,7 +270,5 @@ def test_ovs_tracking_filtered(two_port_ovs):
     )
     assert len(list(return_events)) == 0
 
-    arps = filter(
-        lambda e: e.get("skb", {}).get("etype", None) == 0x0806, events
-    )
+    arps = filter(lambda e: e.get("skb", {}).get("etype", None) == 0x0806, events)
     assert len(list(arps)) == 0

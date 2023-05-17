@@ -19,10 +19,17 @@ unittest_task:
   check_script:
     - cargo fmt --check
     - cargo clippy -- -D warnings
-  python_check_script:
-    - python3 -m pip install black
-    - python3 -m black --check tests/*.py
   before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+python_task:
+  container:
+    image: python:3.11-slim
+  lint_script:
+    - python3 -m pip install flake8
+    - cd tests && python3 -m flake8
+  format_script:
+    - python3 -m pip install black
+    - python3 -m black --check --diff tests/*.py
 
 functional_task:
   # Run for PRs with a specific label
