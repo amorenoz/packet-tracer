@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use anyhow::{bail, Result};
+use log::{debug, error};
 
 use crate::{
     core::{
@@ -12,13 +13,47 @@ use crate::{
 };
 
 /// Trait to process events and send them to the next ProcessorStage.
-pub(crate) trait ProcessorStage {
-    /// Set the next ProcessorStage
-    fn set_next(&mut self, b: Box<dyn ProcessorStage>) -> Result<()>;
-    /// Process and output events one by one.
-    fn process_one(&mut self, e: &Event) -> Result<()>;
-    /// Stop processing. Procesor stages must propagate the stop() action.
-    fn stop(&mut self) -> Result<()>;
+pub(crate) trait ProcessorStage: {
+    /// Process an event and generate an Vector of events.
+    fn process_one(&mut self, e: Event) -> Result<Vec<Event>>;
+    /// Stop processing. Remaining events can be returned.
+    fn stop(&mut self) -> Result<Vec<Event>>;
+}
+
+/// A ProcessorStage made of a set of Outputs
+#[derive(Default)]
+struct OutputStage {
+    outputs: Vec<Box<dyn Output + 'static>>
+}
+
+impl OutputStage {
+    /// Create an output stage from a vector of Outputs. Note the vector is consumed and object's
+    /// ownership is moved.
+    fn from(out: &mut Vec<Box<dyn Output + 'static>>) -> Self {
+        let mut outputs =  Vec::<Box<dyn Output>>::default();
+        outputs.append(out);
+        
+        Self {
+            outputs
+        }
+    }
+}
+
+impl ProcessorStage for OutputStage {
+    fn process_one(&mut self, e: Event) -> Result<Vec<Event>> {
+        debug!("processing one");
+        debug!("number of outputs: {}", self.outputs.len());
+        for o in self.outputs.iter_mut() {
+            o.output_one(&e)?;
+        }
+        Ok(Vec::new())
+    }
+    fn stop(&mut self) -> Result<Vec<Event>> {
+        for o in self.outputs.iter_mut() {
+            o.flush()?;
+        }
+        Ok(Vec::new())
+    }
 }
 
 /// PostProcessor is a small utility object capable of reading files form a file
@@ -28,33 +63,9 @@ where
     F: EventFactory,
 {
     source: &'a mut F,
-    head: Option<Box<dyn ProcessorStage>>,
+    stages: Vec<Box<dyn ProcessorStage>>,
     output: Vec<Box<dyn Output>>,
     duration: Duration,
-}
-
-// Implement a default final stage that outputs the events to the configured output.
-impl<'a, F> ProcessorStage for Processor<'a, F>
-where
-    F: EventFactory,
-{
-    fn set_next(&mut self, _: Box<dyn ProcessorStage>) -> Result<()> {
-        bail!("not implemented")
-    }
-
-    fn process_one(&mut self, e: &Event) -> Result<()> {
-        for output in self.output.iter_mut() {
-            output.output_one(e)?;
-        }
-        Ok(())
-    }
-    /// Flush any pending output operations.
-    fn stop(&mut self) -> Result<()> {
-        for output in self.output.iter_mut() {
-            output.flush()?;
-        }
-        Ok(())
-    }
 }
 
 impl<'a, F> Processor<'a, F>
@@ -65,7 +76,7 @@ where
     pub(crate) fn new(source: &'a mut F) -> Result<Self> {
         Ok(Processor {
             source,
-            head: None,
+            stages: Vec::new(),
             output: Vec::new(),
             duration: Duration::from_secs(1),
         })
@@ -73,11 +84,7 @@ where
 
     /// Add a processor stage.
     pub(crate) fn add_stage(&mut self, stage: Box<dyn ProcessorStage>) -> Result<()> {
-        if let Some(mut head) = self.head.take() {
-            head.set_next(stage)?;
-        } else {
-            self.head = Some(stage);
-        }
+        self.stages.push(stage);
         Ok(())
     }
 
@@ -93,21 +100,32 @@ where
     }
 
     /// Start processing
-    pub(crate) fn run(&mut self, state: Running, factories: SectionFactories) -> Result<()> {
+    pub(crate) fn run(&'a mut self, state: Running, factories: SectionFactories) -> Result<()> {
+        // Insert outputs as last Processor.
+        let output_stage = OutputStage::from(&mut self.output);
+        self.stages.push(Box::new(output_stage));
+
+        // Start the factory
         self.source.start(factories)?;
 
+        // Main loop:
         while state.running() {
+            let mut events = Vec::new(); 
+
             match self.source.next_event(Some(self.duration))? {
                 Some(event) => {
-                    if let Some(mut head) = self.head.take() {
-                        head.process_one(&event)?;
-                    }
+                    events.push(event);
                 }
                 None => continue,
             }
-        }
-        if let Some(mut head) = self.head.take() {
-            head.stop()?;
+
+            for (idx, stage) in self.stages.iter_mut().enumerate() {
+                let mut result = Vec::new();
+                for event in events.drain(..) {
+                    result.append(&mut stage.process_one(event)?);
+                }
+                events = result;
+            }
         }
         Ok(())
     }

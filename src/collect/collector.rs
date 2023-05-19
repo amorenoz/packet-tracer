@@ -184,19 +184,7 @@ impl Collectors {
 
     /// Start the event retrieval for all collectors by calling
     /// their `start()` function.
-    pub(crate) fn start(&mut self) -> Result<()> {
-        // Attach probes and start collectors.
-        self.probes.attach()?;
-
-        self.modules.collectors().iter_mut().for_each(|(id, c)| {
-            if c.start().is_err() {
-                warn!("Could not start collector '{id}'");
-            }
-        });
-        Ok(())
-    }
-
-    /// Starts the processing loop and block until we get a single SIGINT
+    /// Then, starts the processing loop and block until we get a single SIGINT
     /// (e.g. ctrl+c), then return after properly cleaning up. This is the main
     /// collector cmd loop.
     pub(crate) fn process(&mut self, cli: &mut CliConfig) -> Result<()> {
@@ -229,11 +217,21 @@ impl Collectors {
             }
         }
 
+        // Attach probes and start collectors.
+        self.probes.attach()?;
+
+        self.modules.collectors().iter_mut().for_each(|(id, c)| {
+            if c.start().is_err() {
+                warn!("Could not start collector '{id}'");
+            }
+        });
+
         // Create Processor and configure outputs
         let mut process = Processor::new(&mut self.factory)?;
         for o in Self::get_outputs(collect)?.drain(..) {
             process.add_output(o)?;
         }
+
         // Start processing.
         process.run(self.run.clone(), section_factories)?;
         self.stop()
@@ -368,7 +366,6 @@ pub(crate) fn run_collect(cli: FullCli, modules: Modules) -> Result<()> {
     let mut collectors = Collectors::new(modules)?;
     let mut cli = collectors.register_cli(cli)?;
     collectors.init(&mut cli)?;
-    collectors.start()?;
     // Starts a loop.
     collectors.process(&mut cli)?;
     Ok(())
@@ -501,23 +498,6 @@ mod tests {
         assert!(dummy_b.init(&config, &mut mgr).is_err());
 
         assert!(collectors.init(&mut config).is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn start_collectors() -> Result<()> {
-        let mut group = Modules::new()?;
-        let mut dummy_a = Box::new(DummyCollectorA::new()?);
-        let mut dummy_b = Box::new(DummyCollectorB::new()?);
-
-        group.register(ModuleId::Skb, Box::new(DummyCollectorA::new()?))?;
-        group.register(ModuleId::Ovs, Box::new(DummyCollectorB::new()?))?;
-
-        let mut collectors = Collectors::new(group)?;
-
-        assert!(dummy_a.start().is_ok());
-        assert!(dummy_b.start().is_err());
-        assert!(collectors.start().is_ok());
         Ok(())
     }
 
