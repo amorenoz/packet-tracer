@@ -320,7 +320,7 @@ impl Collectors {
         if let Some(out) = args.out.as_ref() {
             // File-based output is always json.
             let formatter = Box::<format::JsonFormat>::default();
-            let mut writers: Vec<Box<dyn Write>> = Vec::new();
+            let mut writers: Vec<Box<dyn Write + Send>> = Vec::new();
             writers.push(Box::new(BufWriter::new(
                 OpenOptions::new()
                     .create(true)
@@ -352,7 +352,7 @@ impl Collectors {
                 OutputFormat::Text => Some(Box::<format::TextFormat>::default()),
             };
             if let Some(f) = formatter {
-                let writer: Box<dyn Write> = Box::new(io::stdout());
+                let writer: Box<dyn Write + Send> = Box::new(io::stdout());
                 outputs.push(Box::new(output::FormatAndWrite::new(f, vec![writer])));
             }
         }

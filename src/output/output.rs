@@ -4,7 +4,7 @@ use crate::core::events::Event;
 use anyhow::Result;
 
 /// Trait to output events
-pub(crate) trait Output {
+pub(crate) trait Output: Send {
     /// Output events one by one.
     fn output_one(&mut self, e: &Event) -> Result<()>;
     /// Flush any pending output operations.
@@ -12,7 +12,7 @@ pub(crate) trait Output {
 }
 
 /// Trait to format events before output processing.
-pub(crate) trait Formatter {
+pub(crate) trait Formatter: Send {
     /// Format events one by one.
     fn format_one(&mut self, e: &Event) -> Result<Vec<u8>>;
 }
@@ -20,11 +20,11 @@ pub(crate) trait Formatter {
 /// Takes a Formatter and one-or-more Write and combines them for handling events.
 pub(crate) struct FormatAndWrite {
     formatter: Box<dyn Formatter>,
-    writers: Vec<Box<dyn Write>>,
+    writers: Vec<Box<dyn Write + Send>>,
 }
 
 impl FormatAndWrite {
-    pub(crate) fn new(formatter: Box<dyn Formatter>, writers: Vec<Box<dyn Write>>) -> Self {
+    pub(crate) fn new(formatter: Box<dyn Formatter>, writers: Vec<Box<dyn Write + Send>>) -> Self {
         FormatAndWrite { formatter, writers }
     }
 }

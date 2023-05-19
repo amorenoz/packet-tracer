@@ -47,6 +47,8 @@ use crate::module::ModuleId;
 #[derive(Default)]
 pub(crate) struct Event(HashMap<ModuleId, Box<dyn EventSection>>);
 
+unsafe impl Send for Event {}
+
 impl Event {
     pub(crate) fn new() -> Event {
         Event::default()
@@ -131,8 +133,8 @@ pub(crate) trait EventFactory {
 /// having a proper structure is encouraged as it allows easier consumption at
 /// post-processing. Those objects can also define their own specialized
 /// helpers.
-pub(crate) trait EventSection: EventSectionInternal + EventFormat {}
-impl<T> EventSection for T where T: EventSectionInternal + EventFormat {}
+pub(crate) trait EventSection: EventSectionInternal + EventFormat + Send + Sync {}
+impl<T> EventSection for T where T: EventSectionInternal + EventFormat + Send + Sync {}
 
 /// EventSection helpers defined in the core for all events. Common definition
 /// needs Sized but that is a requirement for all EventSection.
