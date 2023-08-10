@@ -1,6 +1,6 @@
 # Retis - Tracing packets in the Linux networking stack & friends 
 
-This is brand new version 4.0.0!!!
+This is brand new version 5.0.0!!!
 
 Retis aims at improving visibility of what happens in the Linux networking stack
 and different control and/or data paths, some of which can be in userspace. It
