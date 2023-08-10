@@ -19,9 +19,5 @@ plugins:
   - search
   - offline
   - tags
-
-extra:
-  version:
-    provider: mike
-    default: latest
-
+  - mike:
+      alias_type: symlink

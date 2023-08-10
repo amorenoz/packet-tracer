@@ -1,0 +1,52 @@
+name: Publish docs via GitHub Pages
+on:
+  push:
+    branches:
+      - docs # FIXME: main
+  release:
+    types:
+      - published
+jobs:
+  build:
+    name: Deploy docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout retis
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: git config
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: mike deploy head # FIXME: use main instead of docs
+        if: contains(github.ref, 'refs/heads/docs')
+        run: |
+          mike deploy --push head
+
+      # If a release has been published, deploy it as a new version
+      - name: mike deploy new version
+        if: >-
+          github.event_name == 'release' &&
+          github.event.action == 'published' &&
+          !github.event.release.draft &&
+          !github.event.release.prerelease
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          mike deploy --push "$VERSION"
+          mike deploy --push --update-aliases ${VERSION} latest
+          mike set-default --push latest
