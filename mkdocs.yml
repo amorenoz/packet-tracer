@@ -1,0 +1,19 @@
+site_name: Retis
+site_description: Documentation for Retis, the Linux packet tracing tool
+site_author: The Retis community
+site_url: https://amorenoz.github.io/retis # FIXME
+docs_dir: docs/
+repo_name: GitHub
+repo_url: https://github.com/amorenoz/retis # FIXME
+
+nav:
+  - Overview: README.md
+  - Installation: install.md
+  - Limitations: known_issues.md
+  - Requirements: requirements.md
+  - Examples: examples.md
+  - Contributing: CONTRIBUTING.md
+
+theme: readthedocs
+plugins:
+  - search
