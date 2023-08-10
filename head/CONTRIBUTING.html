@@ -1,0 +1,756 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Retis, the Linux packet tracing tool">
+      
+      
+        <meta name="author" content="The Retis community">
+      
+      
+        <link rel="canonical" href="https://amorenoz.github.io/retis/head/CONTRIBUTING.html">
+      
+      
+        <link rel="prev" href="examples.html">
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.1.21">
+    
+    
+      
+        <title>Contributing - Retis</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.eebd395e.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#contribution-guidelines" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="index.html" title="Retis" class="md-header__button md-logo" aria-label="Retis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Retis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Contributing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/amorenoz/retis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="index.html" title="Retis" class="md-nav__button md-logo" aria-label="Retis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    Retis
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/amorenoz/retis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="install.html" class="md-nav__link">
+        Installation
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="known_issues.html" class="md-nav__link">
+        Limitations
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="requirements.html" class="md-nav__link">
+        Requirements
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="examples.html" class="md-nav__link">
+        Examples
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Contributing
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="CONTRIBUTING.html" class="md-nav__link md-nav__link--active">
+        Contributing
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    Table of contents
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reporting-bugs" class="md-nav__link">
+    Reporting bugs
+  </a>
+  
+    <nav class="md-nav" aria-label="Reporting bugs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-submitting-the-report" class="md-nav__link">
+    Before submitting the report
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-a-good-bug-report" class="md-nav__link">
+    Submitting a good bug report
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#following-up-on-the-report" class="md-nav__link">
+    Following-up on the report
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suggesting-new-features" class="md-nav__link">
+    Suggesting new features
+  </a>
+  
+    <nav class="md-nav" aria-label="Suggesting new features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-suggesting-a-new-feature" class="md-nav__link">
+    Before suggesting a new feature
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-issue-to-request-a-new-feature" class="md-nav__link">
+    Adding an issue to request a new feature
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-contribution" class="md-nav__link">
+    Code contribution
+  </a>
+  
+    <nav class="md-nav" aria-label="Code contribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guidelines" class="md-nav__link">
+    Guidelines
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coding-style" class="md-nav__link">
+    Coding style
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opening-a-pull-request" class="md-nav__link">
+    Opening a pull-request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#following-up-on-the-pull-request" class="md-nav__link">
+    Following-up on the pull-request
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    Table of contents
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reporting-bugs" class="md-nav__link">
+    Reporting bugs
+  </a>
+  
+    <nav class="md-nav" aria-label="Reporting bugs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-submitting-the-report" class="md-nav__link">
+    Before submitting the report
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-a-good-bug-report" class="md-nav__link">
+    Submitting a good bug report
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#following-up-on-the-report" class="md-nav__link">
+    Following-up on the report
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suggesting-new-features" class="md-nav__link">
+    Suggesting new features
+  </a>
+  
+    <nav class="md-nav" aria-label="Suggesting new features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-suggesting-a-new-feature" class="md-nav__link">
+    Before suggesting a new feature
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-an-issue-to-request-a-new-feature" class="md-nav__link">
+    Adding an issue to request a new feature
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-contribution" class="md-nav__link">
+    Code contribution
+  </a>
+  
+    <nav class="md-nav" aria-label="Code contribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guidelines" class="md-nav__link">
+    Guidelines
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coding-style" class="md-nav__link">
+    Coding style
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opening-a-pull-request" class="md-nav__link">
+    Opening a pull-request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#following-up-on-the-pull-request" class="md-nav__link">
+    Following-up on the pull-request
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+
+
+
+  
+  
+
+
+<h1 id="contribution-guidelines">Contribution guidelines</h1>
+<p>Thank you for investing your time and considering contributing to Retis! :tada:</p>
+<p>This guide documents the process to get changes merged into this project, what
+one should expect, as well as prerequisites for pull-requests and patches to be
+considered acceptable.</p>
+<h3 id="table-of-contents">Table of contents</h3>
+<ul>
+<li><a href="#reporting-bugs">Reporting bugs</a></li>
+<li><a href="#suggesting-new-features">Suggesting new features</a></li>
+<li><a href="#code-contribution">Code contribution</a></li>
+</ul>
+<h2 id="reporting-bugs">Reporting bugs</h2>
+<p>Following the guidelines will help the community understand bug reports, which
+in turns will help in reproducing, triaging and fixing those bugs.</p>
+<h3 id="before-submitting-the-report">Before submitting the report</h3>
+<ol>
+<li>Check for similar opened or closed issues. If a similar issue is still
+   opened, please add a comment there.</li>
+<li>Check the version used when the bug was triggered. If it was not the latest,
+   please reproduce with it.</li>
+</ol>
+<h3 id="submitting-a-good-bug-report">Submitting a good bug report</h3>
+<ol>
+<li>Use a clear, concise and descriptive title.</li>
+<li>Describe how to reproduce the bug, in clear exact steps, with examples. The
+   community should not have to guess extra steps, configuration, prerequisites
+   and spend lot of time gathering this information to work on fixing a bug.</li>
+<li>How reliable are those steps to reproduce the issue?</li>
+<li>Describe the outcome of those steps.</li>
+<li>Then describe what would have been expected and why.</li>
+<li>If it is performances related, include numbers.</li>
+</ol>
+<h3 id="following-up-on-the-report">Following-up on the report</h3>
+<ul>
+<li>It's OK to ping <em>once</em> or <em>twice</em>.</li>
+<li>But give time to the community to reproduce and come up with a solution.</li>
+<li>Also note we all have limited time and prioritize things.</li>
+</ul>
+<h2 id="suggesting-new-features">Suggesting new features</h2>
+<p>Features requirement vary depending on users, use cases, priorities, etc. But
+expressing an interest is valuable as it can help prioritizing things and
+shaping the actual behavior.</p>
+<h3 id="before-suggesting-a-new-feature">Before suggesting a new feature</h3>
+<ol>
+<li>Check the feature isn't already available. See the tool help.</li>
+<li>Check it is not already being planned by looking at the different
+   <a href="https://github.com/retis-org/retis/milestones">milestones</a> and
+   <a href="https://github.com/retis-org/retis/issues">issues</a>. If a matching issue is
+   found, please comment on it to express an interest and make suggestions.</li>
+</ol>
+<h3 id="adding-an-issue-to-request-a-new-feature">Adding an issue to request a new feature</h3>
+<ol>
+<li>Use a clear, concise and descriptive title.</li>
+<li>Describe the environment on which the feature would be used and provide
+   value.</li>
+<li>Provide a detailed explanation of what you'd like to be implemented, the
+   expected output and behavior.</li>
+<li>If applicable, explain what the current behavior is lacking and how different
+   you'd like it to be.</li>
+<li>Understand we have limited time and do prioritize things. In this regard,
+   external contributions for new features are highly recommended and can have a
+   great impact in choosing the direction of the project.</li>
+</ol>
+<h2 id="code-contribution">Code contribution</h2>
+<p>Looking for topics to work on? Please have a look at issues triaged as
+<a href="https://github.com/retis-org/retis/issues?q=is%3Aissue+is%3Aopen+label%3A" title="good+first+issue">good first issues</a>
+and/or <a href="https://github.com/retis-org/retis/issues?q=is%3Aissue+is%3Aopen+label%3A" title="help+wanted">help wanted</a>.</p>
+<h3 id="guidelines">Guidelines</h3>
+<ol>
+<li>Follow the <a href="#coding-style">coding style</a>.</li>
+<li>Document functions, structures (including members), enums, ..., and the code
+   itself. You can look at the existing code for understanding what level of
+   documentation we expect.</li>
+<li>Add unit tests.</li>
+<li>Base new work on top of the <code>main</code> branch.</li>
+</ol>
+<h3 id="coding-style">Coding style</h3>
+<p>We strictly follow the Rust coding style as enforced by <code>rustfmt</code> and have a
+strong preference for the
+<a href="https://www.kernel.org/doc/html/latest/process/coding-style.html">Linux kernel</a>
+and particularly its
+<a href="https://www.kernel.org/doc/html/latest/process/maintainer-netdev.html#multi-line-comments">networking</a>
+flavor coding style for the BPF parts.</p>
+<h3 id="opening-a-pull-request">Opening a pull-request</h3>
+<ol>
+<li>Before opening the pull-request, test the changes. Yes, even for those simple
+   one-liner last minute changes.</li>
+<li>Check the following commands do not return an error:</li>
+<li><code>cargo fmt --check</code></li>
+<li><code>cargo clippy -- -D warnings</code></li>
+<li><code>cargo test</code>, or to include runtime tests,
+      <code>CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo' cargo test --features=test_cap_bpf</code></li>
+<li>Make sure commits are
+   <a href="https://www.kernel.org/doc/html/latest/process/submitting-patches.html?highlight=signed%20off#developer-s-certificate-of-origin-1-1">signed off</a>.</li>
+<li>Use a clear, concise and descriptive title.</li>
+<li>If the pull-request is linked to an issue, or based on top of another
+   pull-request; reference those.</li>
+<li>Describe the environment on which the feature is used and provide value.</li>
+<li>Provide a detailed explanation of why the feature was added, how it was done
+   and what is the expected output and behavior.</li>
+<li>If applicable, provide a step-by-step guide on how to test the feature.</li>
+<li>For pull-requests demonstrating a change to start a discussion, please add
+   "[RFC]" in the pull-request title. Once in a state ready to be formally
+   reviewed for inclusion, remove it.</li>
+</ol>
+<h3 id="following-up-on-the-pull-request">Following-up on the pull-request</h3>
+<ol>
+<li>As new versions of the pull-request are pushed, make sure to mark applicable
+   conversations as
+   <a href="https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/commenting-on-a-pull-request#resolving-conversations">resolved</a>.</li>
+<li>If the pull-request has a conflict and cannot be merged, please rebase on the
+   latest <code>main</code>. This can happen at any time, e.g. when other pull-requests are
+   being merged.</li>
+</ol>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="assets/javascripts/bundle.220ee61c.min.js"></script>
+      
+    
+  </body>
+</html>
