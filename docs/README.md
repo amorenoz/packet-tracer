@@ -2,6 +2,12 @@
 
 This is version 10... or whatever!
 
+## A giff
+![Monkey](angry-monkey.gif)
+
+## Presentation
+![type:video](https://www.youtube.com/embed/Ko6zPTI220c?si=q4N-ggspwf6u5Yvy)
+
 Retis aims at improving visibility of what happens in the Linux networking stack
 and different control and/or data paths, some of which can be in userspace. It
 works either in a single collect & display phase, or in a collect then process

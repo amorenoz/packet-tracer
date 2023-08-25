@@ -17,3 +17,4 @@ nav:
 theme: readthedocs
 plugins:
   - search
+  - mkdocs-video
