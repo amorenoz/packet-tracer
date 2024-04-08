@@ -86,7 +86,7 @@ impl Event {
     }
 
     #[allow(clippy::borrowed_box)]
-    pub(super) fn get(&self, owner: ModuleId) -> Option<&Box<dyn EventSection>> {
+    pub(crate) fn get(&self, owner: ModuleId) -> Option<&Box<dyn EventSection>> {
         self.0.get(&owner)
     }
 
