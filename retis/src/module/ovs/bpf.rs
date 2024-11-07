@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
+use std::sync::mpsc;
 
 use anyhow::{anyhow, bail, Result};
 
@@ -76,19 +77,6 @@ impl OvsDataType {
             x => bail!("Can't construct a OvsDataType from {}", x),
         })
     }
-}
-
-pub(super) fn unmarshall_flow_lookup(raw_section: &BpfRawSection) -> Result<OvsEvent> {
-    let raw = parse_raw_section::<flow_lookup_ret_event>(raw_section)?;
-    Ok(OvsEvent::DpLookup {
-        flow_lookup: LookupEvent {
-            flow: raw.flow as usize as u64,
-            sf_acts: raw.sf_acts as usize as u64,
-            ufid: Ufid::from(raw.ufid),
-            n_mask_hit: raw.n_mask_hit,
-            n_cache_hit: raw.n_cache_hit,
-        },
-    })
 }
 
 pub(super) fn unmarshall_upcall(raw_section: &BpfRawSection) -> Result<OvsEvent> {
@@ -284,17 +272,38 @@ pub(super) fn unmarshall_upcall_return(raw_section: &BpfRawSection) -> Result<Ov
 #[derive(Default)]
 pub(crate) struct OvsEventFactory {
     ovs_actions: HashMap<u32, String>,
+    ufid_sender: Option<mpsc::Sender<Ufid>>,
 }
 
 impl OvsEventFactory {
-    pub fn new() -> Result<Self> {
+    pub fn new(ufid_sender: Option<mpsc::Sender<Ufid>>) -> Result<Self> {
         let ovs_actions = if cfg!(feature = "benchmark") {
             // Add a few dummy actions for benchmarking
             HashMap::from([(1, "OUTPUT".to_string()), (2, "USERSPACE".to_string())])
         } else {
             parse_enum("ovs_action_attr", &["OVS_ACTION_ATTR_"])?
         };
-        Ok(OvsEventFactory { ovs_actions })
+        Ok(OvsEventFactory {
+            ovs_actions,
+            ufid_sender,
+        })
+    }
+
+    fn unmarshall_flow_lookup(&mut self, raw_section: &BpfRawSection) -> Result<OvsEvent> {
+        let raw = parse_raw_section::<flow_lookup_ret_event>(raw_section)?;
+        let ufid = Ufid::from(raw.ufid);
+        if let Some(sender) = &self.ufid_sender {
+            sender.send(ufid)?;
+        }
+        Ok(OvsEvent::DpLookup {
+            flow_lookup: LookupEvent {
+                flow: raw.flow as usize as u64,
+                sf_acts: raw.sf_acts as usize as u64,
+                ufid,
+                n_mask_hit: raw.n_mask_hit,
+                n_cache_hit: raw.n_cache_hit,
+            },
+        })
     }
 
     fn unmarshall_exec(&self, raw_section: &BpfRawSection) -> Result<OvsEvent> {
@@ -380,7 +389,7 @@ impl RawEventSectionFactory for OvsEventFactory {
                     event = Some(self.unmarshall_exec(section)?);
                 }
                 OvsDataType::FlowLookup => {
-                    event = Some(unmarshall_flow_lookup(section)?);
+                    event = Some(self.unmarshall_flow_lookup(section)?);
                 }
                 OvsDataType::ActionExecTrack => unmarshall_exec_track(
                     section,

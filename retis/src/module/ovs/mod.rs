@@ -8,6 +8,7 @@ pub(crate) mod ovs;
 // Re-export ovs.rs
 pub(crate) use ovs::*;
 pub(crate) mod bpf;
+pub(crate) mod flow_info;
 
 mod hooks {
     pub(super) mod kernel_enqueue {
