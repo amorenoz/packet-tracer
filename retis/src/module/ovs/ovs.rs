@@ -6,9 +6,10 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::{arg, Parser};
 use libbpf_rs::MapCore;
+use log::warn;
 
 use super::{bpf::OvsEventFactory, flow_info::FlowEnricher, hooks};
 use crate::{
@@ -475,7 +476,15 @@ impl OvsModule {
     }
 
     fn init_flow_enricher(&mut self, factory: Arc<RetisEventsFactory>) -> Result<()> {
-        self.flow_enricher = Some(FlowEnricher::new(factory));
+        let enricher =
+            FlowEnricher::new(factory).context("Failed to connect to OpenvSwitch via unixctl")?;
+
+        if !enricher.detrace_supported() {
+            warn!(
+                "Running OpenvSwitch does not support 'ofproto/detrace', only datapath flows will be enriched"
+            );
+        }
+        self.flow_enricher = Some(enricher);
         Ok(())
     }
 }
