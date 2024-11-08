@@ -410,8 +410,8 @@ impl Collectors {
                 .ok_or_else(|| anyhow!("unknown collector {}", id.to_str()))?;
 
             debug!("Starting collector {id}");
-            if c.start().is_err() {
-                warn!("Could not start collector {id}");
+            if let Err(e) = c.start() {
+                warn!("Could not start collector {id}: {e}");
             }
         }
 
