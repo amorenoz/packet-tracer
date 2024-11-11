@@ -15,6 +15,7 @@
 //! This module implements a thread that can query OpenvSwitch for this information
 //! (caching the results) and enrich the event file with this relationship.
 
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -33,9 +34,22 @@ const MAX_REQUESTS_PER_SEC: u64 = 10;
 const MAX_FLOW_AGE_SECS: u64 = 5;
 
 // A request to enrich a flow
-pub struct EnrichRequest {
-    pub ufid: Ufid,
-    pub ts: SystemTime,
+pub(crate) struct EnrichRequest {
+    ufid: Ufid,
+    flow: u64,
+    sf_acts: u64,
+    ts: SystemTime,
+}
+
+impl EnrichRequest {
+    pub(crate) fn new(ufid: Ufid, flow: u64, sf_acts: u64) -> Self {
+        EnrichRequest {
+            ufid,
+            flow,
+            sf_acts,
+            ts: SystemTime::now(),
+        }
+    }
 }
 
 pub(crate) struct FlowEnricher {
@@ -47,13 +61,13 @@ pub(crate) struct FlowEnricher {
     detrace_supported: bool,
 
     // Sender and receiver of the channel that is used to request enrichments
-    sender: mpsc::Sender<Ufid>,
-    receiver: Option<mpsc::Receiver<Ufid>>,
+    sender: mpsc::Sender<EnrichRequest>,
+    receiver: Option<mpsc::Receiver<EnrichRequest>>,
 }
 
 impl FlowEnricher {
     pub(crate) fn new(events_factory: Arc<RetisEventsFactory>) -> Result<Self> {
-        let (sender, receiver) = mpsc::channel::<Ufid>();
+        let (sender, receiver) = mpsc::channel::<EnrichRequest>();
 
         let mut unixctl = OvsUnixCtl::new()?;
         let commands = unixctl
@@ -73,7 +87,7 @@ impl FlowEnricher {
         self.detrace_supported
     }
 
-    pub(crate) fn sender(&self) -> &mpsc::Sender<Ufid> {
+    pub(crate) fn sender(&self) -> &mpsc::Sender<EnrichRequest> {
         &self.sender
     }
 
@@ -93,6 +107,7 @@ impl FlowEnricher {
                     let mut tasks: VecDeque<EnrichRequest> = VecDeque::new();
                     let mut next_request = SystemTime::UNIX_EPOCH;
                     let mut wait_time = Duration::from_millis(500);
+                    let mut registry = FlowInfoRegistry::default();
 
                     let min_request_time = Duration::from_millis(1000 / MAX_REQUESTS_PER_SEC);
                     let flow_age_time = Duration::from_secs(MAX_FLOW_AGE_SECS);
@@ -100,21 +115,24 @@ impl FlowEnricher {
                     while state.running() {
                         use mpsc::RecvTimeoutError::*;
                         match receiver.recv_timeout(wait_time) {
-                            Ok(ufid) => tasks.push_back(EnrichRequest {
-                                ufid,
-                                ts: SystemTime::now(),
-                            }),
+                            Ok(req) => tasks.push_back(req),
                             Err(Disconnected) => break,
                             Err(Timeout) => (),
                         }
+
+                        let now = SystemTime::now();
+
+                        // Garbage-collect registry.
+                        registry.run(&(now - flow_age_time));
+
+                        // Remove tasks that we've already reported.
+                        tasks.retain(|t| !registry.lookup(t));
 
                         // Nothing to do.
                         if tasks.is_empty() {
                             wait_time = Duration::from_millis(500);
                             continue;
                         }
-
-                        let now = SystemTime::now();
 
                         // Too soon for another request.
                         if now < next_request {
@@ -145,8 +163,14 @@ impl FlowEnricher {
                             continue;
                         }
                         let task = task.unwrap();
-                        let ufid_str = format!("ufid:{}", &task.ufid);
 
+                        // Look up entry in the registry.
+                        if registry.lookup(&task) {
+                            // We have already enriched this Ufid.
+                            continue;
+                        }
+
+                        let ufid_str = format!("ufid:{}", &task.ufid);
                         debug!(
                             "ovs-flow-enricher: Enriching flow. Pending enrichment tasks {}",
                             tasks.len()
@@ -183,9 +207,19 @@ impl FlowEnricher {
                             Ok(Some(data)) => String::from(data.trim()),
                         };
 
-                        if let Err(e) = factory.add_event(fill_event(task.ufid, dpflow, ofpflows)) {
+                        let flow_info = OvsFlowInfoEvent {
+                            ufid: task.ufid,
+                            flow: task.flow,
+                            sf_acts: task.sf_acts,
+                            dpflow,
+                            ofpflows,
+                        };
+
+                        if let Err(e) = factory.add_event(fill_event(flow_info.clone())) {
                             error!("ovs-flow-enricher failed to add event {e}");
                         }
+
+                        registry.insert(task, flow_info);
                     }
                 })?,
         );
@@ -203,19 +237,63 @@ impl FlowEnricher {
     }
 }
 
-fn fill_event(
-    ufid: Ufid,
-    dpflow: String,
-    ofpflows: Vec<String>,
-) -> impl Fn(&mut Event) -> Result<()> {
+fn fill_event(info: OvsFlowInfoEvent) -> impl Fn(&mut Event) -> Result<()> {
     move |event| -> Result<()> {
-        event.insert_section(
-            SectionId::OvsFlowInfo,
-            Box::new(OvsFlowInfoEvent {
-                ufid,
-                dpflow: dpflow.clone(),
-                ofpflows: ofpflows.clone(),
-            }),
-        )
+        event.insert_section(SectionId::OvsFlowInfo, Box::new(info.clone()))
+    }
+}
+
+// Entries of the FlowInfoRegistry
+#[derive(Clone)]
+struct FlowInfoRecord {
+    event: OvsFlowInfoEvent,
+    last_used: SystemTime,
+}
+
+// The FlowInfoRegistry keeps track of what events have already been generated.
+//
+// It is supposed to work within the FlowEnricher thread who should periodically call run()
+// function to execute evictions.
+#[derive(Default)]
+struct FlowInfoRegistry {
+    data: HashMap<Ufid, FlowInfoRecord>,
+}
+
+impl FlowInfoRegistry {
+    // Lookup EnrichRequest in registry
+    fn lookup(&mut self, request: &EnrichRequest) -> bool {
+        let mut flow_changed = false;
+        if let Some(r) = self.data.get_mut(&request.ufid) {
+            if r.event.flow == request.flow && r.event.sf_acts == request.sf_acts {
+                // It's definitely the same flow
+                r.last_used = SystemTime::now();
+            } else {
+                // Same UFID different flow and acts pointer. The flow must have changed
+                // keeping the same key. Delete the old entry.
+                flow_changed = true;
+            }
+        } else {
+            return false;
+        }
+        if flow_changed {
+            self.data.remove(&request.ufid);
+            false
+        } else {
+            true
+        }
+    }
+
+    fn insert(&mut self, request: EnrichRequest, event: OvsFlowInfoEvent) {
+        self.data.insert(
+            request.ufid,
+            FlowInfoRecord {
+                event,
+                last_used: request.ts,
+            },
+        );
+    }
+
+    fn run(&mut self, threshold: &SystemTime) {
+        self.data.retain(|_, r| &r.last_used > threshold);
     }
 }
