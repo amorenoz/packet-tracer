@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, info, warn};
 use nix::{errno::Errno, mount::*, unistd::Uid};
 
@@ -275,13 +275,12 @@ impl Collectors {
                 }
             }
 
-            if let Err(e) = c.init(
+            c.init(
                 cli,
                 self.probes.builder_mut()?,
                 Arc::clone(&self.events_factory),
-            ) {
-                bail!("Could not initialize the {} collector: {}", id, e);
-            }
+            )
+            .context(format!("Could not initialize the {id} collector"))?;
 
             self.loaded.push(id);
 
