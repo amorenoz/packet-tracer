@@ -30,6 +30,13 @@ use crate::events::*;
 use crate::helpers::signals::Running;
 
 const MAX_REQUESTS_PER_SEC: u64 = 10;
+const MAX_FLOW_AGE_SECS: u64 = 5;
+
+// A request to enrich a flow
+pub struct EnrichRequest {
+    pub ufid: Ufid,
+    pub ts: SystemTime,
+}
 
 pub(crate) struct FlowEnricher {
     // Factory to use for event creation
@@ -83,16 +90,20 @@ impl FlowEnricher {
             thread::Builder::new()
                 .name("ovs-flow-enricher".into())
                 .spawn(move || {
-                    let mut tasks: VecDeque<Ufid> = VecDeque::new();
+                    let mut tasks: VecDeque<EnrichRequest> = VecDeque::new();
                     let mut next_request = SystemTime::UNIX_EPOCH;
                     let mut wait_time = Duration::from_millis(500);
 
                     let min_request_time = Duration::from_millis(1000 / MAX_REQUESTS_PER_SEC);
+                    let flow_age_time = Duration::from_secs(MAX_FLOW_AGE_SECS);
 
                     while state.running() {
                         use mpsc::RecvTimeoutError::*;
                         match receiver.recv_timeout(wait_time) {
-                            Ok(ufid) => tasks.push_back(ufid),
+                            Ok(ufid) => tasks.push_back(EnrichRequest {
+                                ufid,
+                                ts: SystemTime::now(),
+                            }),
                             Err(Disconnected) => break,
                             Err(Timeout) => (),
                         }
@@ -116,9 +127,25 @@ impl FlowEnricher {
                         }
                         next_request = now + min_request_time;
 
-                        // We checked tasks was not empty before.
-                        let ufid = tasks.pop_front().unwrap();
-                        let ufid_str = format!("ufid:{}", ufid);
+                        // Timestamp of the first request that is worth enriching.
+                        let front_time = now - flow_age_time;
+                        let front_pos = tasks
+                            .iter()
+                            .position(|r| r.ts >= front_time)
+                            .unwrap_or(tasks.len() - 1);
+                        if front_pos > 0 {
+                            warn!(
+                                "ovs-flow-enricher: Deleting {front_pos} old enrichment requests"
+                            );
+                            tasks.drain(0..front_pos);
+                        }
+
+                        let task = tasks.pop_front();
+                        if task.is_none() {
+                            continue;
+                        }
+                        let task = task.unwrap();
+                        let ufid_str = format!("ufid:{}", &task.ufid);
 
                         debug!(
                             "ovs-flow-enricher: Enriching flow. Pending enrichment tasks {}",
@@ -156,7 +183,7 @@ impl FlowEnricher {
                             Ok(Some(data)) => String::from(data.trim()),
                         };
 
-                        if let Err(e) = factory.add_event(fill_event(ufid, dpflow, ofpflows)) {
+                        if let Err(e) = factory.add_event(fill_event(task.ufid, dpflow, ofpflows)) {
                             error!("ovs-flow-enricher failed to add event {e}");
                         }
                     }
