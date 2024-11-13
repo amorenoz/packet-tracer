@@ -115,7 +115,13 @@ impl FlowEnricher {
                     while state.running() {
                         use mpsc::RecvTimeoutError::*;
                         match receiver.recv_timeout(wait_time) {
-                            Ok(req) => tasks.push_back(req),
+                            Ok(req) => {
+                                // Remove any pending tasks with the same ufid.
+                                if let Some(pos) = tasks.iter().position(|r| r.ufid == req.ufid) {
+                                    tasks.remove(pos);
+                                }
+                                tasks.push_back(req);
+                            }
                             Err(Disconnected) => break,
                             Err(Timeout) => (),
                         }
