@@ -50,6 +50,11 @@ if binary=$(command -v ovs-vswitchd); then
 	ovs_binary_mount="-v ${binary}:${binary}:ro"
 fi
 
+# Determine if OVS unixctl is available on the host and, if so, mount it.
+if [ -f ${OVS_RUNDIR:-/var/run/openvswitch}/ovs-vswitchd.pid ]; then
+	ovs_rundir_mount="-v ${OVS_RUNDIR:-/var/run/openvswitch}:/var/run/openvswitch:rw"
+fi
+
 # Run the Retis container.
 exec $runtime run $extra_args $term_opts --privileged --rm --pid=host \
       -e TERM -e LC_ALL="C.UTF-8" \
@@ -60,4 +65,5 @@ exec $runtime run $extra_args $term_opts --privileged --rm --pid=host \
       -v $(pwd):/data:rw \
       $local_conf \
       $ovs_binary_mount \
+      $ovs_rundir_mount \
       quay.io/retis/retis:$RETIS_TAG "$@"
