@@ -23,7 +23,7 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Result};
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use ovs_unixctl::OvsUnixCtl;
 
 use crate::core::events::factory::RetisEventsFactory;
@@ -112,6 +112,8 @@ impl FlowEnricher {
                     let min_request_time = Duration::from_millis(1000 / MAX_REQUESTS_PER_SEC);
                     let flow_age_time = Duration::from_secs(MAX_FLOW_AGE_SECS);
 
+                    let mut failed_requests: u64 = 0;
+
                     while state.running() {
                         use mpsc::RecvTimeoutError::*;
                         match receiver.recv_timeout(wait_time) {
@@ -181,6 +183,24 @@ impl FlowEnricher {
                             "ovs-flow-enricher: Enriching flow. Pending enrichment tasks {}",
                             tasks.len()
                         );
+
+                        let dpflow = match unixctl.run("dpctl/get-flow", &[ufid_str.as_str()]) {
+                            Err(e) => {
+                                // If the datapath flow was removed before enrichment or OVS runs
+                                // in a namespace, this could happen.
+                                debug!("ovs-flow-enricher: failed to get flow {e}");
+                                failed_requests += 1;
+                                continue;
+                            }
+                            Ok(None) => {
+                                // If the datapath flow was removed before enrichment or OVS runs
+                                // in a namespace, this could happen.
+                                failed_requests += 1;
+                                continue;
+                            }
+                            Ok(Some(data)) => String::from(data.trim()),
+                        };
+
                         let ofpflows = if detrace_supported {
                             match unixctl.run("ofproto/detrace", &[ufid_str.as_str()]) {
                                 Err(e) => {
@@ -199,20 +219,6 @@ impl FlowEnricher {
                             Vec::new()
                         };
 
-                        let dpflow = match unixctl.run("dpctl/get-flow", &[ufid_str.as_str()]) {
-                            Err(e) => {
-                                error!("ovs-flow-enricher: failed to get flow {e}");
-                                continue;
-                            }
-                            Ok(None) => {
-                                // If the datapath flow was removed before enrichment this
-                                // could happen.
-                                warn!("ovs-flow-enricher: dpctl/get-flow returned empty data");
-                                continue;
-                            }
-                            Ok(Some(data)) => String::from(data.trim()),
-                        };
-
                         let flow_info = OvsFlowInfoEvent {
                             ufid: task.ufid,
                             flow: task.flow,
@@ -226,6 +232,13 @@ impl FlowEnricher {
                         }
 
                         registry.insert(task, flow_info);
+                    }
+
+                    if failed_requests > 0 {
+                        warn!("ovs-flow-enricher: {failed_requests} requests failed");
+                    }
+                    if !tasks.is_empty() {
+                        info!("ovs-flow-enricher: {} unsent requests", tasks.len());
                     }
                 })?,
         );
