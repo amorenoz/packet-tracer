@@ -19,7 +19,6 @@ use super::dynamic::DynamicCommand;
 use crate::benchmark::cli::Benchmark;
 use crate::{
     collect::cli::Collect,
-    collect::collector::Modules,
     events::SectionId,
     generate::Complete,
     inspect::Inspect,
@@ -30,20 +29,20 @@ use crate::{
 /// SubCommandRunner defines the common interface to run SubCommands.
 pub(crate) trait SubCommandRunner {
     /// Run the subcommand with a given set of modules and cli configuration
-    fn run(&mut self, cli: FullCli, modules: Modules) -> Result<()>;
+    fn run(&mut self, cli: FullCli) -> Result<()>;
 }
 
 /// SubCommandRunnerFunc is a wrapper for functions that implements SubCommandRunner
 pub(crate) struct SubCommandRunnerFunc<F>
 where
-    F: Fn(FullCli, Modules) -> Result<()>,
+    F: Fn(FullCli) -> Result<()>,
 {
     func: F,
 }
 
 impl<F> SubCommandRunnerFunc<F>
 where
-    F: Fn(FullCli, Modules) -> Result<()>,
+    F: Fn(FullCli) -> Result<()>,
 {
     pub(crate) fn new(func: F) -> Self {
         Self { func }
@@ -52,10 +51,10 @@ where
 
 impl<F> SubCommandRunner for SubCommandRunnerFunc<F>
 where
-    F: Fn(FullCli, Modules) -> Result<()>,
+    F: Fn(FullCli) -> Result<()>,
 {
-    fn run(&mut self, cli: FullCli, modules: Modules) -> Result<()> {
-        (self.func)(cli, modules)
+    fn run(&mut self, cli: FullCli) -> Result<()> {
+        (self.func)(cli)
     }
 }
 
@@ -124,7 +123,7 @@ impl Debug for dyn SubCommand {
 
 /// Trait to convert a clap::Parser into a SubCommandRunner.
 pub(crate) trait SubCommandParserRunner: clap::Parser + Default {
-    fn run(&mut self, modules: Modules) -> Result<()>;
+    fn run(&mut self) -> Result<()>;
 }
 
 // Default implementation of SubCommand for all SubCommandParserRunner.
@@ -164,14 +163,14 @@ where
 
     fn runner(&self) -> Result<Box<dyn SubCommandRunner>> {
         Ok(Box::new(SubCommandRunnerFunc::new(
-            |cli: FullCli, modules: Modules| -> Result<()> {
+            |cli: FullCli| -> Result<()> {
                 let mut cli = cli.run()?;
                 let cmd: &mut Self = cli
                     .subcommand
                     .as_any_mut()
                     .downcast_mut::<Self>()
                     .ok_or_else(|| anyhow!("wrong subcommand"))?;
-                cmd.run(modules)
+                cmd.run()
             },
         )))
     }
@@ -475,9 +474,7 @@ mod tests {
             <Self as FromArgMatches>::update_from_arg_matches(self, matches)
         }
         fn runner(&self) -> Result<Box<dyn SubCommandRunner>> {
-            Ok(Box::new(SubCommandRunnerFunc::new(
-                |_: FullCli, _: Modules| Ok(()),
-            )))
+            Ok(Box::new(SubCommandRunnerFunc::new(|_: FullCli| Ok(()))))
         }
     }
 
@@ -489,7 +486,7 @@ mod tests {
     }
 
     impl SubCommandParserRunner for Sub2 {
-        fn run(&mut self, _: Modules) -> Result<()> {
+        fn run(&mut self) -> Result<()> {
             Ok(())
         }
     }
