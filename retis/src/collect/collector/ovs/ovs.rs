@@ -182,7 +182,7 @@ impl OvsCollector {
             mem::size_of::<execute_actions_ctx>() as u32,
             50,
             &opts,
-        )
+       )
         .or_else(|e| bail!("Could not create the inflight_exec map: {}", e))
     }
 
